@@ -18,6 +18,7 @@ from decos import Log
 from errors import NotDictError
 from descriptors import PortDescriptor
 from metaclasses import ServerVerifier
+from server_db import ServerStorage
 
 server_log = logging.getLogger('server')
 
@@ -25,9 +26,10 @@ server_log = logging.getLogger('server')
 class Server(metaclass=ServerVerifier):
     listen_port = PortDescriptor()
 
-    def __init__(self, listen_addr, listen_port):
+    def __init__(self, listen_addr, listen_port, database):
         self.listen_addr = listen_addr
         self.listen_port = listen_port
+        self.db = database
 
         self.clients = []
         self.messages = []
@@ -50,6 +52,13 @@ class Server(metaclass=ServerVerifier):
                 and isinstance(message[USER], dict)):
             server_log.info(f'Принято presence-сообщение {message} '
                             f'от: {message[USER]["account_name"]}')
+
+            # Добавляем пользователя в базу
+            client_ip, client_port = client.getpeername()
+            self.db.user_login(message[USER]['account_name'],
+                               message[USER]['password'],
+                               client_ip, client_port)
+
             response = {
                 RESPONSE: 200,
                 TIME: time(),
@@ -68,6 +77,10 @@ class Server(metaclass=ServerVerifier):
             return
 
         if ACTION in message and message[ACTION] == EXIT:
+
+            # Удаляем пользователя из активных
+            self.db.user_logout(message[FROM])
+
             server_log.info(f'Клиент {client} отключился от сервера.')
             client.close()
             self.clients.remove(client)
@@ -171,5 +184,8 @@ def get_server_settings():
 if __name__ == '__main__':
 
     addr, port = get_server_settings()
-    server = Server(addr, port)
+
+    server_db = ServerStorage()
+
+    server = Server(addr, port, server_db)
     server.run_server()
