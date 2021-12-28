@@ -7,6 +7,7 @@
 import argparse
 import json
 import select
+import threading
 from time import time
 from sys import argv
 import logging
@@ -23,16 +24,38 @@ from server_db import ServerStorage
 server_log = logging.getLogger('server')
 
 
-class Server(metaclass=ServerVerifier):
+class Server(threading.Thread, metaclass=ServerVerifier):
     listen_port = PortDescriptor()
 
     def __init__(self, listen_addr, listen_port, database):
         self.listen_addr = listen_addr
         self.listen_port = listen_port
+        self.socket = self._init_socket()
+
         self.db = database
 
         self.clients = []
         self.messages = []
+
+        super().__init__()
+
+    def _init_socket(self):
+        """
+        Инициализация серверного секета
+        """
+        server_log.info('Запуск сервера.')
+
+        # Создаём сокет и начинаем прослушивание
+        server_socket = socket(AF_INET, SOCK_STREAM)
+        server_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        server_socket.bind((self.listen_addr, self.listen_port))
+        server_socket.settimeout(TIMEOUT)
+
+        server_socket.listen(MAX_USERS)
+        server_log.info(f'Сервер запущен. Прослушиваемые адреса: {self.listen_addr}'
+                        f'Порт подключения: {self.listen_port}')
+
+        return server_socket
 
     @Log()
     def create_response(self, message, client):
@@ -95,26 +118,14 @@ class Server(metaclass=ServerVerifier):
         send_message(client, response)
         return
 
-    def run_server(self):
+    def run(self):
         """
-        Основная функция для запуска сервера
+        Основной цикл обработки сообщений сервером
         """
-        server_log.info('Запуск сервера.')
-
-        # Создаём сокет и начинаем прослушивание
-        server_socket = socket(AF_INET, SOCK_STREAM)
-        server_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-        server_socket.bind((self.listen_addr, self.listen_port))
-        server_socket.settimeout(TIMEOUT)
-
-        server_socket.listen(MAX_USERS)
-        server_log.info(f'Сервер запущен. Прослушиваемые адреса: {self.listen_addr}'
-                        f'Порт подключения: {self.listen_port}')
-
         while True:
             try:
                 # Получаем данные клиента
-                client, client_address = server_socket.accept()
+                client, client_address = self.socket.accept()
             except OSError:
                 pass
             else:
@@ -145,8 +156,9 @@ class Server(metaclass=ServerVerifier):
                         server_log.error(f'Неверный формат передаваемых данных.')
 
                     except Exception as e:
+                        print(e)
                         server_log.info(f'Клиент {sending_client.getpeername()} отключился от сервера.')
-                        sending_client.close()
+                        # sending_client.close()
                         self.clients.remove(sending_client)
 
             # Отправляем полученные сообщения клиентам
@@ -157,9 +169,23 @@ class Server(metaclass=ServerVerifier):
                     try:
                         send_message(waiting_client, message)
                     except Exception as e:
+                        print(e)
                         server_log.info(f'Клиент {waiting_client.getpeername()} отключился от сервера.')
                         waiting_client.close()
                         self.clients.remove(waiting_client)
+
+
+@Log()
+def print_help():
+    """
+    Функция выводит справку по доступным командам
+    """
+    print('Сервер поддерживает следующие комманды:\n'
+          'u/users - получить список пользователей\n'
+          'c/connected - получить список пользователей в сети\n'
+          'h/history - история входов пользователя\n'
+          'q/quit - завершение работы сервера\n'
+          'help - вывод справки.')
 
 
 @Log()
@@ -181,11 +207,39 @@ def get_server_settings():
     return listen_address, listen_port
 
 
-if __name__ == '__main__':
-
+def main():
     addr, port = get_server_settings()
-
     server_db = ServerStorage()
-
     server = Server(addr, port, server_db)
-    server.run_server()
+    server.daemon = True
+    server.start()
+
+    print_help()
+
+    while True:
+        command = input('Введите команду: ')
+        if command == 'help':
+            print_help()
+        elif command in ['q', 'quit']:
+            break
+
+        elif command in ['u', 'users']:
+            for user in server_db.get_all_users():
+                print(f'Пользователь {user[0]}, последний вход: {user[1]}')
+
+        elif command in ['c', 'connected']:
+            for user in server_db.get_active_users():
+                print(f'Пользователь {user[0]}, подключен c: {user[1]}:{user[2]}')
+
+        elif command in ['h', 'history']:
+            name = input('Введите имя пользователя для просмотра истории. '
+                         'Для вывода всей истории, просто нажмите Enter: ')
+            for user in sorted(server_db.get_login_history(name)):
+                print(f'Пользователь: {user[0]} время входа: {user[3]}. Вход с: {user[1]}:{user[2]}')
+
+        else:
+            print('Команда не распознана, введите help для вывода подсказки.')
+
+
+if __name__ == '__main__':
+    main()

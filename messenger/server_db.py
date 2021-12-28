@@ -89,7 +89,8 @@ class ServerStorage:
 
     def __init__(self):
         # Подключаемся к базе
-        self.engine = create_engine(SERVER_DB, echo=False, pool_recycle=7200)
+        self.engine = create_engine(SERVER_DB, echo=False, pool_recycle=7200,
+                                    connect_args={'check_same_thread': False})
         self.Base.metadata.create_all(self.engine)
         # Создаём сессию
         Session = sessionmaker(self.engine)
