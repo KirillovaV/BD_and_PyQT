@@ -63,19 +63,14 @@ class MessengerClient(metaclass=ClientVerifier):
                 self.print_help()
 
             elif command in ['q', 'quit']:
-                message = {
-                    ACTION: EXIT,
-                    TIME: time(),
-                    FROM: self.user_name
-                }
+                message = self.create_exit_message()
                 try:
                     send_message(self.socket, message)
                 except:
                     pass
                 sleep(0.5)
-                self.socket.close()
                 client_log.info('Завершение подключения.')
-                exit()
+                break
 
             else:
                 print('Команда не распознана, введите help для вывода подсказки.')
@@ -125,6 +120,18 @@ class MessengerClient(metaclass=ClientVerifier):
             TEXT: message_text
         }
         client_log.debug(f'Создано сообщение от {self.user_name} для {recipient}')
+        return message
+
+    @Log()
+    def create_exit_message(self):
+        """
+        Функция формирует сообщение об отключении
+        """
+        message = {
+            ACTION: EXIT,
+            TIME: time(),
+            FROM: self.user_name
+        }
         return message
 
     @Log()
@@ -247,12 +254,12 @@ def get_client_settings():
 
 
 if __name__ == '__main__':
-    connection_ip, connection_port, user_name = get_client_settings()
+    conn_ip, conn_port, name = get_client_settings()
 
-    while not user_name:
-        user_name = input('Введите имя пользователя: ')
+    while not name:
+        name = input('Введите имя пользователя: ')
 
     # user_password = input('Введите пароль: ')
 
-    user = MessengerClient(user_name, '', connection_ip, connection_port)
+    user = MessengerClient(name, '', conn_ip, conn_port)
     user.run_client()
