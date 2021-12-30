@@ -16,6 +16,7 @@ from common.variables import *
 from decos import Log
 from errors import NotDictError, MissingFieldError
 from metaclasses import ClientVerifier
+from client_db import ClientStorage
 
 client_log = logging.getLogger('client')
 

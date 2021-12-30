@@ -3,6 +3,10 @@
 Параметры командной строки:
 -p <port> — TCP-порт для работы (по умолчанию использует 7777);
 -a <addr> — IP-адрес для прослушивания (по умолчанию слушает все доступные адреса).
+
+
+
+
 """
 import argparse
 import json
@@ -158,7 +162,7 @@ class Server(threading.Thread, metaclass=ServerVerifier):
                     except Exception as e:
                         print(e)
                         server_log.info(f'Клиент {sending_client.getpeername()} отключился от сервера.')
-                        # sending_client.close()
+                        sending_client.close()
                         self.clients.remove(sending_client)
 
             # Отправляем полученные сообщения клиентам
