@@ -23,9 +23,10 @@ client_log = logging.getLogger('client')
 
 class MessengerClient(metaclass=ClientVerifier):
 
-    def __init__(self, user_name, password, connection_ip, connection_port):
+    def __init__(self, user_name, password, connection_ip, connection_port, database):
         self.user_name = user_name
         self.password = password
+        self.db = database
         self.socket = self._create_connection(connection_ip, connection_port)
 
     @staticmethod
@@ -58,10 +59,23 @@ class MessengerClient(metaclass=ClientVerifier):
             if command in ['m', 'message']:
                 message = self.create_user_message()
                 send_message(self.socket, message)
+                self.db.save_message(self.user_name, message[TO], message[TEXT], message[TIME])
                 client_log.info(f'Отрправлено сообщение {message}')
 
-            elif command in ['h', 'help']:
+            elif command == 'help':
                 self.print_help()
+
+            elif command in ['h', 'history']:
+                self.get_history()
+
+            elif command in ['gc', 'get contacts']:
+                self.get_contact_list()
+
+            elif command in ['add', 'add contact']:
+                self.add_contact()
+
+            elif command in ['del', 'delete contact']:
+                self.del_contact()
 
             elif command in ['q', 'quit']:
                 message = self.create_exit_message()
@@ -84,7 +98,11 @@ class MessengerClient(metaclass=ClientVerifier):
         print(f'Вы работаете как {self.user_name}')
         print('Доступные команды:\n'
               'm/message - отправить сообщение\n'
-              'h/help - вывод справки\n'
+              'h/history - получить историю контактов\n'
+              'gc/get contacts - получить список контактов\n'
+              'add/add contact - добавить контакт\n'
+              'del/delete contact - удалить контакт\n'
+              'help - вывод справки\n'
               'q/quit - выход')
 
     @Log()
@@ -104,6 +122,50 @@ class MessengerClient(metaclass=ClientVerifier):
         }
         client_log.debug(f'Создано приветственное сообщение серверу от {self.user_name}')
         return message
+
+    @Log()
+    def get_contact_list(self):
+        """
+        Функция отправляет запрос серверу на получение списка контактов пользователя
+        """
+        message = {
+            ACTION: GET_CONTACTS,
+            TIME: time(),
+            FROM: self.user_name
+        }
+        client_log.debug(f'Запрос списка контактов от {self.user_name}')
+        send_message(self.socket, message)
+
+    @Log()
+    def add_contact(self, nickname):
+        message = {
+            ACTION: ADD_CONTACT,
+            FROM: self.user_name,
+            TIME: time(),
+            LOGIN: nickname
+            }
+        client_log.debug(f'Отправлен запрос на добавление контакта {nickname} в список контактов.')
+        send_message(self.socket, message)
+
+        self.db.add_contact(nickname)
+
+    @Log()
+    def del_contact(self, nickname):
+        message = {
+            ACTION: DEL_CONTACT,
+            FROM: self.user_name,
+            TIME: time(),
+            LOGIN: nickname
+            }
+        client_log.debug(f'Отправлен запрос на удаление контакта {nickname} из списка контактов.')
+        send_message(self.socket, message)
+
+        self.db.del_contact(nickname)
+
+    def get_history(self):
+        name = input('Введите имя пользователя для получения переписки с ним '
+                     'или нажмите Enter для получения всей истории сообщений')
+        self.db.get_message_history(name)
 
     @Log()
     def create_user_message(self):
@@ -152,6 +214,8 @@ class MessengerClient(metaclass=ClientVerifier):
                         and TO in message and message[TO] == self.user_name):
                     print(f'{ctime(message[TIME])} - {message[FROM]} пишет:\n'
                           f'{message[TEXT]}')
+                    self.db.save_message(message[FROM], self.user_name, message[TEXT], message[TIME])
+
                 elif TO in message and message[TO] != self.user_name:
                     continue
                 else:
@@ -221,7 +285,7 @@ class MessengerClient(metaclass=ClientVerifier):
             out_thread.start()
             client_log.debug('Сформирован поток для отправки сообщений')
 
-            user.print_help()
+            self.print_help()
 
             while True:
                 sleep(0.5)
@@ -254,13 +318,17 @@ def get_client_settings():
     return connection_ip, connection_port, user_name
 
 
-if __name__ == '__main__':
+def main():
     conn_ip, conn_port, name = get_client_settings()
-
     while not name:
         name = input('Введите имя пользователя: ')
 
     # user_password = input('Введите пароль: ')
+    client_db = ClientStorage(name)
 
-    user = MessengerClient(name, '', conn_ip, conn_port)
+    user = MessengerClient(name, '', conn_ip, conn_port, client_db)
     user.run_client()
+
+
+if __name__ == '__main__':
+    main()
