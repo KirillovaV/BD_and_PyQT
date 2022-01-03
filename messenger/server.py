@@ -3,10 +3,6 @@
 Параметры командной строки:
 -p <port> — TCP-порт для работы (по умолчанию использует 7777);
 -a <addr> — IP-адрес для прослушивания (по умолчанию слушает все доступные адреса).
-
-
-
-
 """
 import argparse
 import json
@@ -101,10 +97,41 @@ class Server(threading.Thread, metaclass=ServerVerifier):
                 and TO in message and TEXT in message):
             server_log.info(f'Принято сообщение {message} от: {message[FROM]}')
             self.messages.append(message)
+
+            self.db.update_actions_history(message[FROM], message[TO])
             return
 
-        if ACTION in message and message[ACTION] == EXIT:
+        # Если пользователь запрашивает контакт-лист
+        if ACTION in message and message[ACTION] == GET_CONTACTS:
+            server_log.info(f'Получен запрос списка контактов от {client}')
+            contact_list = self.db.get_user_contacts(message[FROM])
+            response = {
+                RESPONSE: 202,
+                ALERT: contact_list
+            }
+            send_message(client, response)
+            server_log.info(f'Клиенту {client} отправлен список контактов')
+            return
 
+        # Если пользователь хочет добавить контакт в контакт-лист
+        if (ACTION in message and message[ACTION] == ADD_CONTACT
+                and FROM in message and LOGIN in message):
+            self.db.add_contact(message[FROM], message[LOGIN])
+
+            send_message(client, {RESPONSE: 200})
+            server_log.info(f'Пользователь {message[LOGIN]} добавлен в список контактов пользователя {message[FROM]}')
+            return
+
+        # Если пользователь хочет удалить контакт
+        if (ACTION in message and message[ACTION] == DEL_CONTACT
+                and FROM in message and LOGIN in message):
+            self.db.delete_contact(message[FROM], message[LOGIN])
+            send_message(client, {RESPONSE: 200})
+            server_log.info(f'Пользователь {message[LOGIN]} удален из списка контактов пользователя {message[FROM]}')
+            return
+
+        # Если получено сообщение о выходе, отключаем клиента
+        if ACTION in message and message[ACTION] == EXIT:
             # Удаляем пользователя из активных
             self.db.user_logout(message[FROM])
 
@@ -163,6 +190,7 @@ class Server(threading.Thread, metaclass=ServerVerifier):
                         print(e)
                         server_log.info(f'Клиент {sending_client.getpeername()} отключился от сервера.')
                         sending_client.close()
+                        # user_logout
                         self.clients.remove(sending_client)
 
             # Отправляем полученные сообщения клиентам

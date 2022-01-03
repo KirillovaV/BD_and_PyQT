@@ -41,11 +41,11 @@ class ClientStorage:
         msg_text = Column(String)
         msg_time = Column(DateTime)
 
-        def __init__(self, sender, recipient, msg_text, msg_time):
+        def __init__(self, sender, recipient, msg_text):
             self.sender = sender
             self.recipient = recipient
             self.msg_text = msg_text
-            self.msg_time = msg_time
+            self.msg_time = datetime.now()
 
     def __init__(self, name):
         self.engine = create_engine(f'sqlite:///client_{name}.db3',
@@ -59,11 +59,11 @@ class ClientStorage:
         self.session.query(self.ContactList).delete()
         self.session.commit()
 
-    def save_message(self, sender, recipient, msg_text, msg_time):
+    def save_message(self, sender, recipient, msg_text):
         """
         Сохраняет сообщение
         """
-        self.session.add(self.MessageHistory(sender, recipient, msg_text, msg_time))
+        self.session.add(self.MessageHistory(sender, recipient, msg_text))
         self.session.commit()
 
     def get_message_history(self, name=None):
@@ -130,8 +130,8 @@ if __name__ == '__main__':
 
     test_db.add_users(['test1', 'test2', 'test3', 'test4', 'test5'])
 
-    test_db.save_message('test1', 'test2', 'тестовое сообщение', datetime.now())
-    test_db.save_message('test2', 'test1', 'другое тестовое сообщение', datetime.now())
+    test_db.save_message('test1', 'test2', 'тестовое сообщение')
+    test_db.save_message('test2', 'test1', 'другое тестовое сообщение')
     print(test_db.get_contacts())
 
     print(test_db.check_contact('test1'))

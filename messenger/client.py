@@ -20,6 +20,9 @@ from client_db import ClientStorage
 
 client_log = logging.getLogger('client')
 
+database_lock = threading.Lock()
+sock_lock = threading.Lock()
+
 
 class MessengerClient(metaclass=ClientVerifier):
 
@@ -41,7 +44,7 @@ class MessengerClient(metaclass=ClientVerifier):
             client_socket.connect((ip, port))
             client_log.info(f'Соединение с сервером {ip}:{port}')
 
-        except ConnectionRefusedError:
+        except (ConnectionRefusedError, ConnectionError):
             client_log.critical(f'Не удалось установить соединение с сервером '
                                 f'{ip}:{port}')
             exit(1)
@@ -57,10 +60,7 @@ class MessengerClient(metaclass=ClientVerifier):
             command = input('Введите команду:\n')
 
             if command in ['m', 'message']:
-                message = self.create_user_message()
-                send_message(self.socket, message)
-                self.db.save_message(self.user_name, message[TO], message[TEXT], message[TIME])
-                client_log.info(f'Отрправлено сообщение {message}')
+                self.create_user_message()
 
             elif command == 'help':
                 self.print_help()
@@ -69,7 +69,10 @@ class MessengerClient(metaclass=ClientVerifier):
                 self.get_history()
 
             elif command in ['gc', 'get contacts']:
-                self.get_contact_list()
+                with database_lock:
+                    contacts = self.db.get_contacts()
+                for contact in contacts:
+                    print(contact)
 
             elif command in ['add', 'add contact']:
                 self.add_contact()
@@ -133,34 +136,70 @@ class MessengerClient(metaclass=ClientVerifier):
             TIME: time(),
             FROM: self.user_name
         }
-        client_log.debug(f'Запрос списка контактов от {self.user_name}')
+        client_log.info(f'Запрос списка контактов от {self.user_name}')
+
         send_message(self.socket, message)
+        answer = get_message(self.socket)
+
+        if RESPONSE in answer and answer[RESPONSE] == 202:
+            for contact in answer[ALERT]:
+                self.db.add_contact(contact)
 
     @Log()
-    def add_contact(self, nickname):
+    def add_contact(self):
+        """
+        Функция добавляет контакт в список контактов
+        """
+        nickname = ''
+        while not nickname:
+            nickname = input('Введите имя контакта, который желаете добавить: ')
+
         message = {
             ACTION: ADD_CONTACT,
             FROM: self.user_name,
             TIME: time(),
             LOGIN: nickname
-            }
+        }
         client_log.debug(f'Отправлен запрос на добавление контакта {nickname} в список контактов.')
-        send_message(self.socket, message)
 
-        self.db.add_contact(nickname)
+        # Отправляем запрос на сервер
+        with sock_lock:
+            send_message(self.socket, message)
+        #     answer = get_message(self.socket)
+        #
+        # # Если с сервера получен положительный ответ, добавляем контакт в базу
+        # if RESPONSE in answer and answer[RESPONSE] == 200:
+        with database_lock:
+            self.db.add_contact(nickname)
+        client_log.info(f'Успешное создание контакта {nickname}')
 
     @Log()
-    def del_contact(self, nickname):
+    def del_contact(self):
+        """
+        Функция удаляет контакт из списка контактов
+        """
+        nickname = ''
+        while not nickname:
+            nickname = input('Введите имя контакта, который желаете удалить: ')
+
         message = {
             ACTION: DEL_CONTACT,
             FROM: self.user_name,
             TIME: time(),
             LOGIN: nickname
-            }
-        client_log.debug(f'Отправлен запрос на удаление контакта {nickname} из списка контактов.')
-        send_message(self.socket, message)
+        }
 
-        self.db.del_contact(nickname)
+        with sock_lock:
+            send_message(self.socket, message)
+            client_log.debug(f'Отправлен запрос на удаление контакта {nickname} из списка контактов.')
+        #     answer = get_message(self.socket)
+        #
+        # if RESPONSE in answer and answer[RESPONSE] == 200:
+        #     print('Удаление прошло успешно')
+        with database_lock:
+            self.db.del_contact(nickname)
+
+            client_log.info(f'Успешное удаление контакта {nickname}')
 
     def get_history(self):
         name = input('Введите имя пользователя для получения переписки с ним '
@@ -170,7 +209,8 @@ class MessengerClient(metaclass=ClientVerifier):
     @Log()
     def create_user_message(self):
         """
-        Функция формирует сообщениепользователя для отправки.
+        Функция формирует сообщение пользователя,
+        отправляет его и записывает в историю сообщений
         :return:
         """
         recipient = input('Введите получателя: ')
@@ -183,7 +223,14 @@ class MessengerClient(metaclass=ClientVerifier):
             TEXT: message_text
         }
         client_log.debug(f'Создано сообщение от {self.user_name} для {recipient}')
-        return message
+
+        with sock_lock:
+            send_message(self.socket, message)
+
+        with database_lock:
+            self.db.save_message(self.user_name, message[TO], message[TEXT])
+
+        client_log.info(f'Отрправлено сообщение {message}')
 
     @Log()
     def create_exit_message(self):
@@ -214,15 +261,16 @@ class MessengerClient(metaclass=ClientVerifier):
                         and TO in message and message[TO] == self.user_name):
                     print(f'{ctime(message[TIME])} - {message[FROM]} пишет:\n'
                           f'{message[TEXT]}')
-                    self.db.save_message(message[FROM], self.user_name, message[TEXT], message[TIME])
+                    self.db.save_message(message[FROM], self.user_name, message[TEXT])
 
                 elif TO in message and message[TO] != self.user_name:
                     continue
+
                 else:
                     raise ValueError
 
             except (OSError, ConnectionError, ConnectionAbortedError,
-                    ConnectionResetError, json.JSONDecodeError):
+                        ConnectionResetError, json.JSONDecodeError):
                 client_log.critical('Потеряно соединение с сервером.')
                 break
 
@@ -261,6 +309,8 @@ class MessengerClient(metaclass=ClientVerifier):
             # Получаем и обрабатываем ответ сервера
             answer = self.read_response(get_message(self.socket))
             client_log.info(f'Получен ответ сервера {answer}')
+
+            self.get_contact_list()
 
         except (ValueError, NotDictError):
             client_log.error(f'Неверный формат передаваемых данных.')

@@ -8,6 +8,7 @@ d) контакты пользователей
 e) история действий пользователей
 """
 import datetime as dt
+import sqlite3
 from pprint import pprint
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import sessionmaker
@@ -137,8 +138,9 @@ class ServerStorage:
             self.session.add(user_history)
 
         # Добавляем пользователя в активные
-        new_user = self.ActiveUsers(user.user_id, now, ip, port)
-        self.session.add(new_user)
+        if not self.session.query(self.ActiveUsers).filter_by(user_id=user.user_id).count():
+            new_user = self.ActiveUsers(user.user_id, now, ip, port)
+            self.session.add(new_user)
 
         # Добавляем запись в историю
         history = self.History(user.user_id, now, ip, port)
@@ -260,7 +262,7 @@ class ServerStorage:
         # Запрашиваем его список контактов
         query = self.session.query(self.UsersContacts,
                                    self.Users.login).filter_by(user=user).\
-                                   join(self.Users, self.UsersContacts.contact == self.Users.user_id)
+            join(self.Users, self.UsersContacts.contact == self.Users.user_id)
 
         contacts = [contact[1] for contact in query.all()]
         return contacts
