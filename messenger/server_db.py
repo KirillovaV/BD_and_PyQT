@@ -8,7 +8,6 @@ d) контакты пользователей
 e) история действий пользователей
 """
 import datetime as dt
-import sqlite3
 from pprint import pprint
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import sessionmaker

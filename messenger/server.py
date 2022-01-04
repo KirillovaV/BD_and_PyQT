@@ -107,6 +107,7 @@ class Server(threading.Thread, metaclass=ServerVerifier):
             contact_list = self.db.get_user_contacts(message[FROM])
             response = {
                 RESPONSE: 202,
+                TIME: time(),
                 ALERT: contact_list
             }
             send_message(client, response)
@@ -118,7 +119,9 @@ class Server(threading.Thread, metaclass=ServerVerifier):
                 and FROM in message and LOGIN in message):
             self.db.add_contact(message[FROM], message[LOGIN])
 
-            send_message(client, {RESPONSE: 200})
+            send_message(client, {RESPONSE: 200,
+                                  TIME: time()
+                                  })
             server_log.info(f'Пользователь {message[LOGIN]} добавлен в список контактов пользователя {message[FROM]}')
             return
 
@@ -126,7 +129,9 @@ class Server(threading.Thread, metaclass=ServerVerifier):
         if (ACTION in message and message[ACTION] == DEL_CONTACT
                 and FROM in message and LOGIN in message):
             self.db.delete_contact(message[FROM], message[LOGIN])
-            send_message(client, {RESPONSE: 200})
+            send_message(client, {RESPONSE: 200,
+                                  TIME: time()
+                                  })
             server_log.info(f'Пользователь {message[LOGIN]} удален из списка контактов пользователя {message[FROM]}')
             return
 

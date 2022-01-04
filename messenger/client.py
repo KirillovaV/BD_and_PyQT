@@ -165,12 +165,13 @@ class MessengerClient(metaclass=ClientVerifier):
         # Отправляем запрос на сервер
         with sock_lock:
             send_message(self.socket, message)
-        #     answer = get_message(self.socket)
-        #
-        # # Если с сервера получен положительный ответ, добавляем контакт в базу
-        # if RESPONSE in answer and answer[RESPONSE] == 200:
-        with database_lock:
-            self.db.add_contact(nickname)
+            answer = get_message(self.socket)
+
+        # Если с сервера получен положительный ответ, добавляем контакт в базу
+        if RESPONSE in answer and answer[RESPONSE] == 200:
+            print('Добавление прошло успешно')
+            with database_lock:
+                self.db.add_contact(nickname)
         client_log.info(f'Успешное создание контакта {nickname}')
 
     @Log()
@@ -192,12 +193,12 @@ class MessengerClient(metaclass=ClientVerifier):
         with sock_lock:
             send_message(self.socket, message)
             client_log.debug(f'Отправлен запрос на удаление контакта {nickname} из списка контактов.')
-        #     answer = get_message(self.socket)
-        #
-        # if RESPONSE in answer and answer[RESPONSE] == 200:
-        #     print('Удаление прошло успешно')
-        with database_lock:
-            self.db.del_contact(nickname)
+            answer = get_message(self.socket)
+
+        if RESPONSE in answer and answer[RESPONSE] == 200:
+            print('Удаление прошло успешно')
+            with database_lock:
+                self.db.del_contact(nickname)
 
             client_log.info(f'Успешное удаление контакта {nickname}')
 
@@ -270,7 +271,7 @@ class MessengerClient(metaclass=ClientVerifier):
                     raise ValueError
 
             except (OSError, ConnectionError, ConnectionAbortedError,
-                        ConnectionResetError, json.JSONDecodeError):
+                    ConnectionResetError, json.JSONDecodeError):
                 client_log.critical('Потеряно соединение с сервером.')
                 break
 
@@ -339,7 +340,8 @@ class MessengerClient(metaclass=ClientVerifier):
 
             while True:
                 sleep(0.5)
-                if in_thread.is_alive() and out_thread.is_alive():
+                if out_thread.is_alive():
+                    # in_thread.is_alive() and
                     continue
                 break
 
