@@ -16,15 +16,20 @@ from common.variables import *
 from decos import Log
 from errors import NotDictError, MissingFieldError
 from metaclasses import ClientVerifier
+from client_db import ClientStorage
 
 client_log = logging.getLogger('client')
+
+database_lock = threading.Lock()
+sock_lock = threading.Lock()
 
 
 class MessengerClient(metaclass=ClientVerifier):
 
-    def __init__(self, user_name, password, connection_ip, connection_port):
+    def __init__(self, user_name, password, connection_ip, connection_port, database):
         self.user_name = user_name
         self.password = password
+        self.db = database
         self.socket = self._create_connection(connection_ip, connection_port)
 
     @staticmethod
@@ -39,7 +44,7 @@ class MessengerClient(metaclass=ClientVerifier):
             client_socket.connect((ip, port))
             client_log.info(f'Соединение с сервером {ip}:{port}')
 
-        except ConnectionRefusedError:
+        except (ConnectionRefusedError, ConnectionError):
             client_log.critical(f'Не удалось установить соединение с сервером '
                                 f'{ip}:{port}')
             exit(1)
@@ -55,12 +60,25 @@ class MessengerClient(metaclass=ClientVerifier):
             command = input('Введите команду:\n')
 
             if command in ['m', 'message']:
-                message = self.create_user_message()
-                send_message(self.socket, message)
-                client_log.info(f'Отрправлено сообщение {message}')
+                self.create_user_message()
 
-            elif command in ['h', 'help']:
+            elif command == 'help':
                 self.print_help()
+
+            elif command in ['h', 'history']:
+                self.get_history()
+
+            elif command in ['gc', 'get contacts']:
+                with database_lock:
+                    contacts = self.db.get_contacts()
+                for contact in contacts:
+                    print(contact)
+
+            elif command in ['add', 'add contact']:
+                self.add_contact()
+
+            elif command in ['del', 'delete contact']:
+                self.del_contact()
 
             elif command in ['q', 'quit']:
                 message = self.create_exit_message()
@@ -83,7 +101,11 @@ class MessengerClient(metaclass=ClientVerifier):
         print(f'Вы работаете как {self.user_name}')
         print('Доступные команды:\n'
               'm/message - отправить сообщение\n'
-              'h/help - вывод справки\n'
+              'h/history - получить историю контактов\n'
+              'gc/get contacts - получить список контактов\n'
+              'add/add contact - добавить контакт\n'
+              'del/delete contact - удалить контакт\n'
+              'help - вывод справки\n'
               'q/quit - выход')
 
     @Log()
@@ -105,9 +127,94 @@ class MessengerClient(metaclass=ClientVerifier):
         return message
 
     @Log()
+    def get_contact_list(self):
+        """
+        Функция отправляет запрос серверу на получение списка контактов пользователя
+        """
+        message = {
+            ACTION: GET_CONTACTS,
+            TIME: time(),
+            FROM: self.user_name
+        }
+        client_log.info(f'Запрос списка контактов от {self.user_name}')
+
+        send_message(self.socket, message)
+        answer = get_message(self.socket)
+
+        if RESPONSE in answer and answer[RESPONSE] == 202:
+            for contact in answer[ALERT]:
+                self.db.add_contact(contact)
+
+    @Log()
+    def add_contact(self):
+        """
+        Функция добавляет контакт в список контактов
+        """
+        nickname = ''
+        while not nickname:
+            nickname = input('Введите имя контакта, который желаете добавить: ')
+
+        message = {
+            ACTION: ADD_CONTACT,
+            FROM: self.user_name,
+            TIME: time(),
+            LOGIN: nickname
+        }
+        client_log.debug(f'Отправлен запрос на добавление контакта {nickname} в список контактов.')
+
+        # Отправляем запрос на сервер
+        with sock_lock:
+            send_message(self.socket, message)
+            answer = get_message(self.socket)
+
+        # Если с сервера получен положительный ответ, добавляем контакт в базу
+        if RESPONSE in answer and answer[RESPONSE] == 200:
+            print('Добавление прошло успешно')
+            with database_lock:
+                self.db.add_contact(nickname)
+        client_log.info(f'Успешное создание контакта {nickname}')
+
+    @Log()
+    def del_contact(self):
+        """
+        Функция удаляет контакт из списка контактов
+        """
+        nickname = ''
+        while not nickname:
+            nickname = input('Введите имя контакта, который желаете удалить: ')
+
+        message = {
+            ACTION: DEL_CONTACT,
+            FROM: self.user_name,
+            TIME: time(),
+            LOGIN: nickname
+        }
+
+        with sock_lock:
+            send_message(self.socket, message)
+            client_log.debug(f'Отправлен запрос на удаление контакта {nickname} из списка контактов.')
+            answer = get_message(self.socket)
+
+        if RESPONSE in answer and answer[RESPONSE] == 200:
+            print('Удаление прошло успешно')
+            with database_lock:
+                self.db.del_contact(nickname)
+
+            client_log.info(f'Успешное удаление контакта {nickname}')
+
+    def get_history(self):
+        name = input('Введите имя пользователя для получения переписки с ним '
+                     'или нажмите Enter для получения всей истории сообщений')
+        history = self.db.get_message_history(name)
+        for row in history:
+            print(f'От {row[0]} для {row[1]} в {row[2]}\n'
+                  f'{row[3]}')
+
+    @Log()
     def create_user_message(self):
         """
-        Функция формирует сообщениепользователя для отправки.
+        Функция формирует сообщение пользователя,
+        отправляет его и записывает в историю сообщений
         :return:
         """
         recipient = input('Введите получателя: ')
@@ -120,7 +227,14 @@ class MessengerClient(metaclass=ClientVerifier):
             TEXT: message_text
         }
         client_log.debug(f'Создано сообщение от {self.user_name} для {recipient}')
-        return message
+
+        with sock_lock:
+            send_message(self.socket, message)
+
+        with database_lock:
+            self.db.save_message(self.user_name, message[TO], message[TEXT])
+
+        client_log.info(f'Отрправлено сообщение {message}')
 
     @Log()
     def create_exit_message(self):
@@ -151,8 +265,11 @@ class MessengerClient(metaclass=ClientVerifier):
                         and TO in message and message[TO] == self.user_name):
                     print(f'{ctime(message[TIME])} - {message[FROM]} пишет:\n'
                           f'{message[TEXT]}')
+                    self.db.save_message(message[FROM], self.user_name, message[TEXT])
+
                 elif TO in message and message[TO] != self.user_name:
                     continue
+
                 else:
                     raise ValueError
 
@@ -197,6 +314,8 @@ class MessengerClient(metaclass=ClientVerifier):
             answer = self.read_response(get_message(self.socket))
             client_log.info(f'Получен ответ сервера {answer}')
 
+            self.get_contact_list()
+
         except (ValueError, NotDictError):
             client_log.error(f'Неверный формат передаваемых данных.')
             exit(1)
@@ -220,7 +339,7 @@ class MessengerClient(metaclass=ClientVerifier):
             out_thread.start()
             client_log.debug('Сформирован поток для отправки сообщений')
 
-            user.print_help()
+            self.print_help()
 
             while True:
                 sleep(0.5)
@@ -253,13 +372,17 @@ def get_client_settings():
     return connection_ip, connection_port, user_name
 
 
-if __name__ == '__main__':
+def main():
     conn_ip, conn_port, name = get_client_settings()
-
     while not name:
         name = input('Введите имя пользователя: ')
 
     # user_password = input('Введите пароль: ')
+    client_db = ClientStorage(name)
 
-    user = MessengerClient(name, '', conn_ip, conn_port)
+    user = MessengerClient(name, '', conn_ip, conn_port, client_db)
     user.run_client()
+
+
+if __name__ == '__main__':
+    main()

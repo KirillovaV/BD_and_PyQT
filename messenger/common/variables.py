@@ -12,9 +12,6 @@ MAX_USERS = 10
 
 ENCODING = 'utf-8'
 
-# База данных сервера
-SERVER_DB = 'sqlite:///server_base.db3'
-
 # JIM-протокол
 ACTION = 'action'
 TIME = 'time'
@@ -23,6 +20,7 @@ TO = 'to'
 FROM = 'from'
 TEXT = 'message'
 USER = 'user'
+LOGIN = 'user_login'
 RESPONSE = 'response'
 ALERT = 'alert'
 ERROR = 'error'
@@ -31,3 +29,6 @@ ERROR = 'error'
 PRESENCE = 'presence'
 MSG = 'msg'
 EXIT = 'quit'
+GET_CONTACTS = 'get_contacts'
+ADD_CONTACT = 'add_contact'
+DEL_CONTACT = 'del_contact'

@@ -1,32 +1,17 @@
 """
-1. Начать реализацию класса «Хранилище» для серверной стороны.
-Хранение необходимо осуществлять в базе данных.
-В качестве СУБД использовать sqlite. Для взаимодействия с БД можно применять ORM.
-Опорная схема базы данных:
+База данных для серверной стороны.
 На стороне сервера БД содержит следующие таблицы:
-
-a) вcе клиенты:
-* логин;
-* дата последнего входа (last login_time).
-
-b) история клиентов:
-* id-клиента;
-* login_time;
-* ip-адрес.
-* port
-
-c) список активных клиентов:
-* id_клиента;
-* ip-адрес;
-* port;
-* login_time.
+a) вcе клиенты
+b) история клиентов
+c) список активных клиентов
+d) контакты пользователей
+e) история действий пользователей
 """
 import datetime as dt
 from pprint import pprint
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from common.variables import SERVER_DB
 
 
 class ServerStorage:
@@ -58,7 +43,7 @@ class ServerStorage:
         __tablename__ = 'login_history'
 
         id = Column(Integer, primary_key=True)
-        user_id = Column(String, ForeignKey('all_users.user_id'))
+        user_id = Column(Integer, ForeignKey('all_users.user_id'))
         login_time = Column(DateTime)
         ip = Column(String)
         port = Column(Integer)
@@ -76,7 +61,7 @@ class ServerStorage:
         __tablename__ = 'active_users'
 
         id = Column(Integer, primary_key=True)
-        user_id = Column(String, ForeignKey('all_users.user_id'), unique=True)
+        user_id = Column(Integer, ForeignKey('all_users.user_id'), unique=True)
         login_time = Column(DateTime)
         ip = Column(String)
         port = Column(Integer)
@@ -87,9 +72,39 @@ class ServerStorage:
             self.port = port
             self.login_time = login_time
 
-    def __init__(self):
+    class UsersContacts(Base):
+        """
+        Таблица "Контакты пользователей"
+        """
+        __tablename__ = 'users_contacts'
+
+        id = Column(Integer, primary_key=True)
+        user = Column(Integer, ForeignKey('all_users.user_id'))
+        contact = Column(Integer, ForeignKey('all_users.user_id'))
+
+        def __init__(self, user, contact):
+            self.user = user
+            self.contact = contact
+
+    class ActionsHistory(Base):
+        """
+        Таблица "История действий пользователей
+        """
+        __tablename__ = 'actions_history'
+
+        id = Column(Integer, primary_key=True)
+        user = Column(Integer, ForeignKey('all_users.user_id'))
+        sent = Column(Integer)
+        accepted = Column(Integer)
+
+        def __init__(self, user):
+            self.user = user
+            self.sent = 0
+            self.accepted = 0
+
+    def __init__(self, path):
         # Подключаемся к базе
-        self.engine = create_engine(SERVER_DB, echo=False, pool_recycle=7200,
+        self.engine = create_engine(f'sqlite:///{path}', echo=False, pool_recycle=7200,
                                     connect_args={'check_same_thread': False})
         self.Base.metadata.create_all(self.engine)
         # Создаём сессию
@@ -117,10 +132,13 @@ class ServerStorage:
             user = self.Users(name, password)
             self.session.add(user)
             self.session.commit()
+            user_history = self.ActionsHistory(user.user_id)
+            self.session.add(user_history)
 
         # Добавляем пользователя в активные
-        new_user = self.ActiveUsers(user.user_id, now, ip, port)
-        self.session.add(new_user)
+        if not self.session.query(self.ActiveUsers).filter_by(user_id=user.user_id).count():
+            new_user = self.ActiveUsers(user.user_id, now, ip, port)
+            self.session.add(new_user)
 
         # Добавляем запись в историю
         history = self.History(user.user_id, now, ip, port)
@@ -146,7 +164,8 @@ class ServerStorage:
         """
         active_users = self.session.query(self.Users.login,
                                           self.ActiveUsers.ip,
-                                          self.ActiveUsers.port
+                                          self.ActiveUsers.port,
+                                          self.ActiveUsers.login_time
                                           ).join(self.Users)
         return active_users.all()
 
@@ -170,12 +189,90 @@ class ServerStorage:
             history = history.filter(self.Users.login == name)
         return history.all()
 
+    def update_actions_history(self, sender, recipient):
+        """
+        Обновляет статистику отправленных/полученных сообщений пользлвателя
+        """
+        # Находим отправителя и получателя
+        sender = self.session.query(self.Users).filter_by(login=sender).first()
+        recipient = self.session.query(self.Users).filter_by(login=recipient).first()
+
+        # Если неверный получатель выходим
+        if not recipient:
+            return
+
+        # Увеличиваем счётчики и записываем
+        sender_row = self.session.query(self.ActionsHistory).filter_by(user=sender.user_id).first()
+        sender_row.sent += 1
+        recipient_row = self.session.query(self.ActionsHistory).filter_by(user=recipient.user_id).first()
+        recipient_row.accepted += 1
+        self.session.commit()
+
+    def get_actions_history(self):
+        """
+        Получить статистику пользователя
+        """
+        query = self.session.query(self.Users.login,
+                                   self.Users.last_login,
+                                   self.ActionsHistory.sent,
+                                   self.ActionsHistory.accepted
+                                   ).join(self.Users)
+        return query.all()
+
+    def add_contact(self, user, contact):
+        """
+        Добавить контакт
+        """
+        # Находим пользователей
+        user = self.session.query(self.Users).filter_by(login=user).first()
+        contact = self.session.query(self.Users).filter_by(login=contact).first()
+
+        # Проверяем возможность создать контакт
+        if not contact or self.session.query(self.UsersContacts).filter_by(user=user.user_id,
+                                                                           contact=contact.user_id).count():
+            return
+
+        contact_row = self.UsersContacts(user.user_id, contact.user_id)
+        self.session.add(contact_row)
+        self.session.commit()
+
+    def delete_contact(self, user, contact):
+        """
+        Удалить контакт
+        """
+        user = self.session.query(self.Users).filter_by(login=user).first()
+        contact = self.session.query(self.Users).filter_by(login=contact).first()
+
+        if not contact:
+            return
+
+        self.session.query(self.UsersContacts).filter(
+            self.UsersContacts.user == user.user_id,
+            self.UsersContacts.contact == contact.user_id).delete()
+        self.session.commit()
+
+    def get_user_contacts(self, user):
+        """
+        Влзвращает список контактов указанного пользователя
+        """
+        # Ищем пользователя
+        user = self.session.query(self.Users).filter_by(login=user).first().user_id
+
+        # Запрашиваем его список контактов
+        query = self.session.query(self.UsersContacts,
+                                   self.Users.login).filter_by(user=user).\
+            join(self.Users, self.UsersContacts.contact == self.Users.user_id)
+
+        contacts = [contact[1] for contact in query.all()]
+        return contacts
+
 
 if __name__ == '__main__':
     print('-== Инициализация БД и добавление пользователей ==-')
     db = ServerStorage()
     db.user_login('user1', 'password1', '10.0.0.1', 7777)
     db.user_login('user2', 'password2', '10.0.0.2', 8888)
+    db.user_login('user6', 'pass', '10.0.0.8', 8080)
 
     print('-== Активные пользователи ==-')
     print(db.get_active_users())
@@ -191,3 +288,19 @@ if __name__ == '__main__':
     pprint(db.get_login_history('user1'))
     print('-' * 20)
     pprint(db.get_login_history())
+
+    print('-== История сообщений ==-')
+    db.update_actions_history('user1', 'user2')
+    db.update_actions_history('user1', 'user2')
+    db.update_actions_history('user2', 'user1')
+
+    pprint(db.get_actions_history())
+
+    print('-== Контакты ==-')
+    db.add_contact('user1', 'user2')
+    db.add_contact('user1', 'user3')
+    print(db.get_user_contacts('user1'))
+    db.add_contact('user2', 'user6')
+    print(db.get_user_contacts('user2'))
+    db.delete_contact('user1', 'user2')
+    print(db.get_user_contacts('user1'))
