@@ -205,7 +205,10 @@ class MessengerClient(metaclass=ClientVerifier):
     def get_history(self):
         name = input('Введите имя пользователя для получения переписки с ним '
                      'или нажмите Enter для получения всей истории сообщений')
-        self.db.get_message_history(name)
+        history = self.db.get_message_history(name)
+        for row in history:
+            print(f'От {row[0]} для {row[1]} в {row[2]}\n'
+                  f'{row[3]}')
 
     @Log()
     def create_user_message(self):
@@ -340,8 +343,7 @@ class MessengerClient(metaclass=ClientVerifier):
 
             while True:
                 sleep(0.5)
-                if out_thread.is_alive():
-                    # in_thread.is_alive() and
+                if in_thread.is_alive() and out_thread.is_alive():
                     continue
                 break
 

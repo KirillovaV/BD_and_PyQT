@@ -12,7 +12,6 @@ from pprint import pprint
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from common.variables import SERVER_DB
 
 
 class ServerStorage:
@@ -103,9 +102,9 @@ class ServerStorage:
             self.sent = 0
             self.accepted = 0
 
-    def __init__(self):
+    def __init__(self, path):
         # Подключаемся к базе
-        self.engine = create_engine(SERVER_DB, echo=False, pool_recycle=7200,
+        self.engine = create_engine(f'sqlite:///{path}', echo=False, pool_recycle=7200,
                                     connect_args={'check_same_thread': False})
         self.Base.metadata.create_all(self.engine)
         # Создаём сессию
@@ -165,7 +164,8 @@ class ServerStorage:
         """
         active_users = self.session.query(self.Users.login,
                                           self.ActiveUsers.ip,
-                                          self.ActiveUsers.port
+                                          self.ActiveUsers.port,
+                                          self.ActiveUsers.login_time
                                           ).join(self.Users)
         return active_users.all()
 

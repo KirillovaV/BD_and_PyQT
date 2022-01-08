@@ -4,8 +4,7 @@
 a) список контактов;
 b) история сообщений.
 """
-
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, or_
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
@@ -72,14 +71,11 @@ class ClientStorage:
         """
         history = self.session.query(self.MessageHistory)
         if name:
-            for row in history:
-                if row.sender == name or row.recipient == name:
-                    print(f'От {row.sender} для {row.recipient} в {row.msg_time}\n'
-                          f'{row.msg_text}\n')
-        else:
-            for row in history:
-                print(f'От {row.sender} для {row.recipient} в {row.msg_time}\n'
-                      f'{row.msg_text}\n')
+            history = history.filter(or_(self.MessageHistory.sender == name,
+                                         self.MessageHistory.recipient == name))
+
+        result = [(row.sender, row.recipient, row.msg_time, row.msg_text) for row in history]
+        return result
 
     def add_users(self, contact_list):
         """
@@ -137,9 +133,13 @@ if __name__ == '__main__':
     print(test_db.check_contact('test1'))
     print(test_db.check_contact('test10'))
 
-    test_db.get_message_history('test2')
-    test_db.get_message_history()
+    for msg in test_db.get_message_history('test2'):
+        print(f'От {msg[0]} для {msg[1]} в {msg[2]}\n'
+              f'{msg[3]}')
+
+    for msg in test_db.get_message_history():
+        print(f'От {msg[0]} для {msg[1]} в {msg[2]}\n'
+              f'{msg[3]}')
 
     test_db.del_contact('test4')
     print(test_db.get_contacts())
-

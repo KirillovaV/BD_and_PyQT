@@ -12,9 +12,6 @@ MAX_USERS = 10
 
 ENCODING = 'utf-8'
 
-# База данных сервера
-SERVER_DB = 'sqlite:///server_base.db3'
-
 # JIM-протокол
 ACTION = 'action'
 TIME = 'time'
