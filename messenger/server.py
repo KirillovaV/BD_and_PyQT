@@ -13,19 +13,17 @@ import configparser
 from time import time
 from sys import argv
 import logging
-import log.server_log_config
 from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
 from common.utils import send_message, get_message
 from common.variables import *
-from decos import Log
-from errors import NotDictError
+from common.decos import Log
+from common.errors import NotDictError
 from descriptors import PortDescriptor
 from metaclasses import ServerVerifier
 from server_db import ServerStorage
 from PyQt5.QtWidgets import QApplication, QMessageBox
 from PyQt5.QtCore import QTimer
 from server_gui import MainWindow, create_users_model, StatisticsWindow, create_history_model, ConfigWindow
-from PyQt5.QtGui import QStandardItemModel, QStandardItem
 
 server_log = logging.getLogger('server')
 
@@ -124,9 +122,21 @@ class Server(threading.Thread, metaclass=ServerVerifier):
             self.db.update_actions_history(message[FROM], message[TO])
             return
 
+        # Если пользователь запрашивает список пользователей
+        elif ACTION in message and message[ACTION] == GET_USERS:
+            server_log.info(f'Получен запрос списка пользователей от {message[FROM]}')
+            user_list = self.db.get_all_users()
+            response = {
+                RESPONSE: 202,
+                TIME: time(),
+                ALERT: user_list
+            }
+            send_message(client, response)
+            server_log.info(f'Клиенту {message[FROM]} отправлен список пользователей')
+
         # Если пользователь запрашивает контакт-лист
         elif ACTION in message and message[ACTION] == GET_CONTACTS:
-            server_log.info(f'Получен запрос списка контактов от {client}')
+            server_log.info(f'Получен запрос списка контактов от {message[FROM]}')
             contact_list = self.db.get_user_contacts(message[FROM])
             response = {
                 RESPONSE: 202,
@@ -134,7 +144,7 @@ class Server(threading.Thread, metaclass=ServerVerifier):
                 ALERT: contact_list
             }
             send_message(client, response)
-            server_log.info(f'Клиенту {client} отправлен список контактов')
+            server_log.info(f'Клиенту {message[FROM]} отправлен список контактов')
 
         # Если пользователь хочет добавить контакт в контакт-лист
         elif (ACTION in message and message[ACTION] == ADD_CONTACT

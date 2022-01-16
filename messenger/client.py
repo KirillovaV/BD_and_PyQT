@@ -4,348 +4,18 @@
 addr — ip-адрес сервера; port — tcp-порт на сервере, по умолчанию 7777.
 """
 import argparse
-import json
-import threading
 import logging
-import log.client_log_config
-from time import time, ctime, sleep
 from sys import argv, exit
-from socket import socket, AF_INET, SOCK_STREAM
-from common.utils import send_message, get_message
+from PyQt5.QtWidgets import QApplication
 from common.variables import *
-from decos import Log
-from errors import NotDictError, MissingFieldError
-from metaclasses import ClientVerifier
-from client_db import ClientStorage
+from common.decos import Log
+from common.errors import ServerError
+from client.client_db import ClientStorage
+from client.start_dialog import UserNameDialog
+from client.transport import MessengerClient
+from client.main_window import ClientMainWindow
 
 client_log = logging.getLogger('client')
-
-database_lock = threading.Lock()
-sock_lock = threading.Lock()
-
-
-class MessengerClient(metaclass=ClientVerifier):
-
-    def __init__(self, user_name, password, connection_ip, connection_port, database):
-        self.user_name = user_name
-        self.password = password
-        self.db = database
-        self.socket = self._create_connection(connection_ip, connection_port)
-
-    @staticmethod
-    def _create_connection(ip, port):
-        """
-        Функция пытается установить соединение с сервером
-        из полученных ip-адреса и порта
-        :return: клиентский сокет
-        """
-        try:
-            client_socket = socket(AF_INET, SOCK_STREAM)
-            client_socket.connect((ip, port))
-            client_log.info(f'Соединение с сервером {ip}:{port}')
-
-        except (ConnectionRefusedError, ConnectionError):
-            client_log.critical(f'Не удалось установить соединение с сервером '
-                                f'{ip}:{port}')
-            exit(1)
-        else:
-            return client_socket
-
-    @Log()
-    def get_command(self):
-        """
-        Функция реализует интерфейс взаимодействия с пользователем.
-        """
-        while True:
-            command = input('Введите команду:\n')
-
-            if command in ['m', 'message']:
-                self.create_user_message()
-
-            elif command == 'help':
-                self.print_help()
-
-            elif command in ['h', 'history']:
-                self.get_history()
-
-            elif command in ['gc', 'get contacts']:
-                with database_lock:
-                    contacts = self.db.get_contacts()
-                for contact in contacts:
-                    print(contact)
-
-            elif command in ['add', 'add contact']:
-                self.add_contact()
-
-            elif command in ['del', 'delete contact']:
-                self.del_contact()
-
-            elif command in ['q', 'quit']:
-                message = self.create_exit_message()
-                try:
-                    send_message(self.socket, message)
-                except:
-                    pass
-                sleep(0.5)
-                client_log.info('Завершение подключения.')
-                break
-
-            else:
-                print('Команда не распознана, введите help для вывода подсказки.')
-
-    @Log()
-    def print_help(self):
-        """
-        Выводит имя текущего пользователя и подсказку по доступным командам
-        """
-        print(f'Вы работаете как {self.user_name}')
-        print('Доступные команды:\n'
-              'm/message - отправить сообщение\n'
-              'h/history - получить историю контактов\n'
-              'gc/get contacts - получить список контактов\n'
-              'add/add contact - добавить контакт\n'
-              'del/delete contact - удалить контакт\n'
-              'help - вывод справки\n'
-              'q/quit - выход')
-
-    @Log()
-    def create_presence_message(self):
-        """
-        Функция формирует presence-сообщение для сервера
-        :return:
-        """
-        message = {
-            ACTION: PRESENCE,
-            TIME: time(),
-            TYPE: 'status',
-            USER: {
-                'account_name': self.user_name,
-                'password': self.password
-            }
-        }
-        client_log.debug(f'Создано приветственное сообщение серверу от {self.user_name}')
-        return message
-
-    @Log()
-    def get_contact_list(self):
-        """
-        Функция отправляет запрос серверу на получение списка контактов пользователя
-        """
-        message = {
-            ACTION: GET_CONTACTS,
-            TIME: time(),
-            FROM: self.user_name
-        }
-        client_log.info(f'Запрос списка контактов от {self.user_name}')
-
-        send_message(self.socket, message)
-        answer = get_message(self.socket)
-
-        if RESPONSE in answer and answer[RESPONSE] == 202:
-            for contact in answer[ALERT]:
-                self.db.add_contact(contact)
-
-    @Log()
-    def add_contact(self):
-        """
-        Функция добавляет контакт в список контактов
-        """
-        nickname = ''
-        while not nickname:
-            nickname = input('Введите имя контакта, который желаете добавить: ')
-
-        message = {
-            ACTION: ADD_CONTACT,
-            FROM: self.user_name,
-            TIME: time(),
-            LOGIN: nickname
-        }
-        client_log.debug(f'Отправлен запрос на добавление контакта {nickname} в список контактов.')
-
-        # Отправляем запрос на сервер
-        with sock_lock:
-            send_message(self.socket, message)
-            answer = get_message(self.socket)
-
-        # Если с сервера получен положительный ответ, добавляем контакт в базу
-        if RESPONSE in answer and answer[RESPONSE] == 200:
-            print('Добавление прошло успешно')
-            with database_lock:
-                self.db.add_contact(nickname)
-        client_log.info(f'Успешное создание контакта {nickname}')
-
-    @Log()
-    def del_contact(self):
-        """
-        Функция удаляет контакт из списка контактов
-        """
-        nickname = ''
-        while not nickname:
-            nickname = input('Введите имя контакта, который желаете удалить: ')
-
-        message = {
-            ACTION: DEL_CONTACT,
-            FROM: self.user_name,
-            TIME: time(),
-            LOGIN: nickname
-        }
-
-        with sock_lock:
-            send_message(self.socket, message)
-            client_log.debug(f'Отправлен запрос на удаление контакта {nickname} из списка контактов.')
-            answer = get_message(self.socket)
-
-        if RESPONSE in answer and answer[RESPONSE] == 200:
-            print('Удаление прошло успешно')
-            with database_lock:
-                self.db.del_contact(nickname)
-
-            client_log.info(f'Успешное удаление контакта {nickname}')
-
-    def get_history(self):
-        name = input('Введите имя пользователя для получения переписки с ним '
-                     'или нажмите Enter для получения всей истории сообщений')
-        history = self.db.get_message_history(name)
-        for row in history:
-            print(f'От {row[0]} для {row[1]} в {row[2]}\n'
-                  f'{row[3]}')
-
-    @Log()
-    def create_user_message(self):
-        """
-        Функция формирует сообщение пользователя,
-        отправляет его и записывает в историю сообщений
-        :return:
-        """
-        recipient = input('Введите получателя: ')
-        message_text = input('Введите сообщение: ')
-        message = {
-            ACTION: MSG,
-            TIME: time(),
-            FROM: self.user_name,
-            TO: recipient,
-            TEXT: message_text
-        }
-        client_log.debug(f'Создано сообщение от {self.user_name} для {recipient}')
-
-        with sock_lock:
-            send_message(self.socket, message)
-
-        with database_lock:
-            self.db.save_message(self.user_name, message[TO], message[TEXT])
-
-        client_log.info(f'Отрправлено сообщение {message}')
-
-    @Log()
-    def create_exit_message(self):
-        """
-        Функция формирует сообщение об отключении
-        """
-        message = {
-            ACTION: EXIT,
-            TIME: time(),
-            FROM: self.user_name
-        }
-        return message
-
-    @Log()
-    def read_user_message(self):
-        """
-        Функция обрабатывает полученные сообщения и выводит на экран.
-        :return:
-        """
-        while True:
-            try:
-                message = get_message(self.socket)
-                client_log.info(f'Получено сообщение {message}')
-                client_log.debug(f'Разбор сообщения сервера: {message}')
-                if (ACTION in message and message[ACTION] == MSG
-                        and TIME in message and FROM in message
-                        and TEXT in message
-                        and TO in message and message[TO] == self.user_name):
-                    print(f'{ctime(message[TIME])} - {message[FROM]} пишет:\n'
-                          f'{message[TEXT]}')
-                    self.db.save_message(message[FROM], self.user_name, message[TEXT])
-
-                elif TO in message and message[TO] != self.user_name:
-                    continue
-
-                else:
-                    raise ValueError
-
-            except (OSError, ConnectionError, ConnectionAbortedError,
-                    ConnectionResetError, json.JSONDecodeError):
-                client_log.critical('Потеряно соединение с сервером.')
-                break
-
-            except ValueError:
-                client_log.error(f'Получено некорректное сообщение от сервера {message}')
-
-    @Log()
-    def read_response(self, message):
-        """
-        Функция принимает ответ сервера и выводит на экран
-        соответствующий результат
-        :param message:
-        :return:
-        """
-        client_log.debug(f'Разбор ответа сервера: {message}')
-        if 'response' in message:
-            if message[RESPONSE] == 200:
-                return f'200: {message[ALERT]}'
-            elif message[RESPONSE] == 400:
-                return f'400: {message[ERROR]}'
-            else:
-                raise ValueError
-        raise MissingFieldError(RESPONSE)
-
-    def run_client(self):
-        """
-        Основная функция для запуска клиентской части
-        """
-        client_log.info(f'Запуск клиента.')
-        try:
-            # Создаем и отправляем presence-сообщение
-            message = self.create_presence_message()
-            send_message(self.socket, message)
-            client_log.info(f'Отрправлено сообщение {message}')
-
-            # Получаем и обрабатываем ответ сервера
-            answer = self.read_response(get_message(self.socket))
-            client_log.info(f'Получен ответ сервера {answer}')
-
-            self.get_contact_list()
-
-        except (ValueError, NotDictError):
-            client_log.error(f'Неверный формат передаваемых данных.')
-            exit(1)
-
-        except MissingFieldError as err:
-            client_log.error(f'Ответ сервена не содержит поля {err.missing_field}')
-            exit(1)
-
-        except json.JSONDecodeError:
-            client_log.error(f'Не удалось декодировать сообщение сервера.')
-            exit(1)
-
-        else:
-            in_thread = threading.Thread(target=self.read_user_message,
-                                         daemon=True)
-            in_thread.start()
-            client_log.debug('Сформирован поток для приема сообщений')
-
-            out_thread = threading.Thread(target=self.get_command,
-                                          daemon=True)
-            out_thread.start()
-            client_log.debug('Сформирован поток для отправки сообщений')
-
-            self.print_help()
-
-            while True:
-                sleep(0.5)
-                if in_thread.is_alive() and out_thread.is_alive():
-                    continue
-                break
 
 
 @Log()
@@ -369,19 +39,51 @@ def get_client_settings():
                             f'Порт должен находиться в диапазоне от 1024 до 65535.')
         exit(1)
 
+    client_log.debug(f'Получены параметры подключения {connection_ip}:{connection_port}')
+
     return connection_ip, connection_port, user_name
 
 
+@Log()
 def main():
+    """
+    Основная функция для запуска клиентской части мессенджера7474747474747474747474
+    """
     conn_ip, conn_port, name = get_client_settings()
-    while not name:
-        name = input('Введите имя пользователя: ')
 
-    # user_password = input('Введите пароль: ')
+    client_app = QApplication(argv)
+
+    if not name:
+        start_dialog = UserNameDialog()
+        client_app.exec_()
+        if start_dialog.ok_pressed:
+            name = start_dialog.client_name.text()
+            del start_dialog
+        else:
+            exit(0)
+
     client_db = ClientStorage(name)
 
-    user = MessengerClient(name, '', conn_ip, conn_port, client_db)
-    user.run_client()
+    # Создаём подключение
+    try:
+        connection = MessengerClient(name, conn_ip, conn_port, client_db)
+    except ServerError as error:
+        print(error.text)
+        exit(1)
+    connection.setDaemon(True)
+    connection.start()
+
+    client_log.info(f'Запущен клиент для пользователя {name}.'
+                    f'Адрес подключения: {conn_ip}, порт:{conn_port}')
+
+    # GUI
+    main_window = ClientMainWindow(client_db, connection)
+    main_window.make_connection(connection)
+    main_window.setWindowTitle(f'Добро пожаловать, {name}')
+    client_app.exec_()
+
+    connection.connection_shutdown()
+    connection.join()
 
 
 if __name__ == '__main__':

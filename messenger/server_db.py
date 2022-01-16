@@ -173,7 +173,8 @@ class ServerStorage:
         """
         Получить список всех пользователей
         """
-        return self.session.query(self.Users.login, self.Users.last_login).all()
+        users = self.session.query(self.Users.login, self.Users.last_login).all()
+        return [user[0] for user in users]
 
     def get_login_history(self, name=None):
         """
@@ -269,7 +270,7 @@ class ServerStorage:
 
 if __name__ == '__main__':
     print('-== Инициализация БД и добавление пользователей ==-')
-    db = ServerStorage()
+    db = ServerStorage('server_base.db3')
     db.user_login('user1', 'password1', '10.0.0.1', 7777)
     db.user_login('user2', 'password2', '10.0.0.2', 8888)
     db.user_login('user6', 'pass', '10.0.0.8', 8080)
@@ -304,3 +305,5 @@ if __name__ == '__main__':
     print(db.get_user_contacts('user2'))
     db.delete_contact('user1', 'user2')
     print(db.get_user_contacts('user1'))
+
+    print(db.get_all_users())
