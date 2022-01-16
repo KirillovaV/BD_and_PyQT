@@ -1,9 +1,11 @@
 """
 База данных для клиентской стороны.
 БД содержит следующие таблицы:
-a) список контактов;
-b) история сообщений.
+a) список всех пользователей;
+b) список контактов;
+c) история сообщений.
 """
+import os
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, or_
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
@@ -15,6 +17,18 @@ class ClientStorage:
     Класс для клиентской базы данных
     """
     Base = declarative_base()
+
+    class AllUsers(Base):
+        """
+        Список известных пользователей
+        """
+        __tablename__ = 'all_users'
+
+        id = Column(Integer, primary_key=True)
+        user_name = Column(String, unique=True)
+
+        def __init__(self, name):
+            self.user_name = name
 
     class ContactList(Base):
         """
@@ -47,8 +61,11 @@ class ClientStorage:
             self.msg_time = datetime.now()
 
     def __init__(self, name):
-        self.engine = create_engine(f'sqlite:///client_{name}.db3',
-                                    echo=False, pool_recycle=7200,
+        path = os.path.dirname(os.path.realpath(__file__))
+        filename = f'client_{name}.db3'
+        self.engine = create_engine(f'sqlite:///{os.path.join(path, filename)}',
+                                    echo=False,
+                                    pool_recycle=7200,
                                     connect_args={'check_same_thread': False})
 
         self.Base.metadata.create_all(self.engine)
@@ -77,7 +94,32 @@ class ClientStorage:
         result = [(row.sender, row.recipient, row.msg_time, row.msg_text) for row in history]
         return result
 
-    def add_users(self, contact_list):
+    def add_all_users(self, user_list):
+        """
+        Добавляет в базу список пользователей, полученный с сервера
+        """
+        self.session.query(self.AllUsers).delete()
+        for user in user_list:
+            user_row = self.AllUsers(user)
+            self.session.add(user_row)
+        self.session.commit()
+
+    def get_users(self):
+        """
+        Возвращает список известных пользователей
+        """
+        return [user[0] for user in self.session.query(self.AllUsers.user_name).all()]
+
+    def check_user(self, user):
+        """
+        Проверяющяя наличие пользователя в известных
+        """
+        if self.session.query(self.AllUsers).filter_by(user_name=user).count():
+            return True
+        else:
+            return False
+
+    def add_contacts(self, contact_list):
         """
         Обновляет список контактов
         """
@@ -124,7 +166,7 @@ if __name__ == '__main__':
 
     test_db.add_contact('test4')
 
-    test_db.add_users(['test1', 'test2', 'test3', 'test4', 'test5'])
+    test_db.add_contacts(['test1', 'test2', 'test3', 'test4', 'test5'])
 
     test_db.save_message('test1', 'test2', 'тестовое сообщение')
     test_db.save_message('test2', 'test1', 'другое тестовое сообщение')

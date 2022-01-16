@@ -3,8 +3,8 @@
 """
 import json
 from common.variables import MAX_PACKAGE_LENGTH, ENCODING
-from decos import Log
-from errors import NotDictError
+from common.decos import Log
+from common.errors import NotDictError
 
 
 @Log()
