@@ -1,9 +1,11 @@
 import json
+import sys
 import threading
 import logging
 from time import time, sleep
 from socket import socket, AF_INET, SOCK_STREAM
 from PyQt5.QtCore import pyqtSignal, QObject
+sys.path.append('../')
 from common.utils import send_message, get_message
 from common.variables import *
 from common.decos import Log
@@ -180,7 +182,6 @@ class MessengerClient(threading.Thread, QObject):
             send_message(self.socket, message)
             self.read_response(get_message(self.socket))
             client_log.info(f'Отрправлено сообщение {message}')
-        # self.db.save_message(self.user_name, message[TO], message[TEXT])
 
     @Log()
     def connection_shutdown(self):

@@ -16,9 +16,6 @@ from PyQt5.QtCore import pyqtSlot, Qt
 from client.main_window_ui import Ui_MainClientWindow
 from client.add_contact import AddContactDialog
 from client.del_contact import DelContactDialog
-from client.client_db import ClientStorage
-from client.transport import MessengerClient
-from client.start_dialog import UserNameDialog
 sys.path.append('../')
 from common.errors import ServerError
 
