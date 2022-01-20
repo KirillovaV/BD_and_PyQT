@@ -22,6 +22,7 @@ while True:
         # Запустить сервер
         processes.append(Popen('python server.py', creationflags=CREATE_NEW_CONSOLE))
 
-        # Запустить 3 клиента
+        # Запустить 2 клиента
         for i in range(2):
-            processes.append(Popen(f'python client.py -n user{i}', creationflags=CREATE_NEW_CONSOLE))
+            processes.append(Popen(f'python client.py -n user{i} -p 12345',
+                                   creationflags=CREATE_NEW_CONSOLE))

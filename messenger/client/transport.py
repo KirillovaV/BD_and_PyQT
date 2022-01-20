@@ -1,3 +1,6 @@
+import binascii
+import hashlib
+import hmac
 import json
 import sys
 import threading
@@ -19,14 +22,16 @@ class MessengerClient(threading.Thread, QObject):
     """
     Класс-поток для сообщения с сервером
     """
-    new_message = pyqtSignal(str)
+    new_message = pyqtSignal(dict)
     connection_lost = pyqtSignal()
 
-    def __init__(self, user_name, connection_ip, connection_port, database):
+    def __init__(self, user_name, password, connection_ip, connection_port, database, keys):
         threading.Thread.__init__(self)
         QObject.__init__(self)
 
         self.user_name = user_name
+        self.password = password
+        self.keys = keys
         self.db = database
         self.socket = None
         self.create_connection(connection_ip, connection_port)
@@ -50,7 +55,6 @@ class MessengerClient(threading.Thread, QObject):
         """
         Функция пытается установить соединение с сервером
         из полученных ip-адреса и порта
-        :return: клиентский сокет
         """
         try:
             self.socket = socket(AF_INET, SOCK_STREAM)
@@ -63,27 +67,49 @@ class MessengerClient(threading.Thread, QObject):
 
         else:
             client_log.info(f'Соединение с сервером {ip}:{port}')
+            client_log.info('Запуск процедуры авторизации.')
+
+            password_hash = hashlib.pbkdf2_hmac('sha512',
+                                                self.password.encode('utf-8'),
+                                                self.user_name.encode('utf-8'),
+                                                10000)
+            passwd_hash_string = binascii.hexlify(password_hash)
+            pubkey = self.keys.publickey().export_key().decode('ascii')
+
+            message = self.create_presence_message(pubkey)
+
             try:
                 with sock_lock:
-                    send_message(self.socket, self.create_presence_message())
-                    self.read_response(get_message(self.socket))
+                    send_message(self.socket, message)
+                    answer = get_message(self.socket)
+                    if RESPONSE in answer:
+                        if answer[RESPONSE] == 400:
+                            client_log.error(f'Ошибка авторизации. {answer[ERROR]}')
+                            raise ServerError(answer[ERROR])
+                        elif answer[RESPONSE] == 511:
+                            data = answer[DATA]
+                            digest = hmac.new(passwd_hash_string, data.encode('utf-8'), 'MD5').digest()
+                            my_answer = RESPONSE_511
+                            my_answer[DATA] = binascii.b2a_base64(digest).decode('ascii')
+                            send_message(self.socket, my_answer)
+                            self.read_response(get_message(self.socket))
+                            client_log.info('Авторизация прошла успешно.')
             except (OSError, json.JSONDecodeError):
-                client_log.critical('Потеряно соединение с сервером.')
-                raise ServerError('Потеряно соединение с сервером.')
+                client_log.critical('Сбой соединения в процессе авторизации.')
+                raise ServerError('Сбой соединения в процессе авторизации.')
 
     @Log()
-    def create_presence_message(self):
+    def create_presence_message(self, pubkey):
         """
         Функция формирует presence-сообщение для сервера
-        :return:
+        :return: presence-сообщение
         """
         message = {
             ACTION: PRESENCE,
             TIME: time(),
-            TYPE: 'status',
             USER: {
-                'account_name': self.user_name,
-                'password': ''
+                ACCOUNT_NAME: self.user_name,
+                PUBLIC_KEY: pubkey
             }
         }
         client_log.debug(f'Создано приветственное сообщение серверу от {self.user_name}')
@@ -129,6 +155,24 @@ class MessengerClient(threading.Thread, QObject):
         else:
             client_log.error('Не удалось обновить список известных пользователей.')
 
+    def key_request(self, user):
+        """
+        Запрашивает публичный ключ пользователя.
+        """
+        client_log.debug(f'Запрос публичного ключа для {user}')
+        req = {
+            ACTION: PUBLIC_KEY_REQUEST,
+            TIME: time(),
+            ACCOUNT_NAME: user
+        }
+        with sock_lock:
+            send_message(self.socket, req)
+            ans = get_message(self.socket)
+        if RESPONSE in ans and ans[RESPONSE] == 511:
+            return ans[DATA]
+        else:
+            client_log.error(f'Не удалось получить ключ пользователя {user}.')
+
     @Log()
     def add_contact(self, nickname):
         """
@@ -167,7 +211,6 @@ class MessengerClient(threading.Thread, QObject):
     def create_user_message(self, recipient, message_text):
         """
         Функция формирует сообщение пользователя и отправляет его
-        :return:
         """
         message = {
             ACTION: MSG,
@@ -207,8 +250,6 @@ class MessengerClient(threading.Thread, QObject):
         """
         Функция принимает сообщение сервера, разбирает его
         и выводит соответствующий результат
-        :param message:
-        :return:
         """
         client_log.debug(f'Разбор ответа сервера: {message}')
         if RESPONSE in message:
@@ -225,8 +266,7 @@ class MessengerClient(threading.Thread, QObject):
                 and TEXT in message
                 and TO in message and message[TO] == self.user_name):
             client_log.info(f'Получено сообщение {message}')
-            self.db.save_message(message[FROM], self.user_name, message[TEXT])
-            self.new_message.emit(message[FROM])
+            self.new_message.emit(message)
 
     def run(self):
         """
