@@ -9,7 +9,7 @@ e) история действий пользователей
 """
 import datetime as dt
 from pprint import pprint
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -30,6 +30,7 @@ class ServerStorage:
         login = Column(String, unique=True)
         password = Column(String)
         last_login = Column(DateTime)
+        pubkey = Column(Text)
 
         def __init__(self, login, password):
             self.login = login
@@ -115,30 +116,27 @@ class ServerStorage:
 
         self.session.commit()
 
-    def user_login(self, name, password, ip, port):
+    def user_login(self, name, ip, port, key):
         """
         Вход пользователя в систему
         """
+        now = dt.datetime.now()
         # Ищем пользователя
         result = self.session.query(self.Users).filter_by(login=name)
-        now = dt.datetime.now()
 
         if result.count():
             # Если пользователь есть, обновляем данные
             user = result.first()
             user.last_login = now
+            if user.pubkey != key:
+                user.pubkey = key
+
         else:
-            # Иначе создаём пользователя
-            user = self.Users(name, password)
-            self.session.add(user)
-            self.session.commit()
-            user_history = self.ActionsHistory(user.user_id)
-            self.session.add(user_history)
+            raise ValueError('Пользователь не зарегистрирован.')
 
         # Добавляем пользователя в активные
-        if not self.session.query(self.ActiveUsers).filter_by(user_id=user.user_id).count():
-            new_user = self.ActiveUsers(user.user_id, now, ip, port)
-            self.session.add(new_user)
+        new_user = self.ActiveUsers(user.user_id, now, ip, port)
+        self.session.add(new_user)
 
         # Добавляем запись в историю
         history = self.History(user.user_id, now, ip, port)
@@ -267,13 +265,57 @@ class ServerStorage:
         contacts = [contact[1] for contact in query.all()]
         return contacts
 
+    def check_user(self, name):
+        """
+        Проверяет существует ли указанное имя пользователя.
+        """
+        if self.session.query(self.Users).filter_by(login=name).count():
+            return True
+        else:
+            return False
+
+    def add_user(self, name, password_hash):
+        """
+        Регистрация в базе нового пользователя.
+        """
+        user = self.Users(name, password_hash)
+        self.session.add(user)
+        self.session.commit()
+        history_row = self.ActionsHistory(user.user_id)
+        self.session.add(history_row)
+        self.session.commit()
+
+    def remove_user(self, name):
+        """
+        Метод удаляющий пользователя из базы.
+        """
+        user = self.session.query(self.Users).filter_by(login=name).first()
+
+        self.session.query(self.ActiveUsers).filter_by(user_id=user.user_id).delete()
+        self.session.query(self.History).filter_by(user_id=user.user_id).delete()
+        self.session.query(self.UsersContacts).filter_by(user=user.user_id).delete()
+        self.session.query(self.UsersContacts).filter_by(contact=user.user_id).delete()
+        self.session.query(self.ActionsHistory).filter_by(user=user.user_id).delete()
+        self.session.query(self.Users).filter_by(login=name).delete()
+
+        self.session.commit()
+
+    def get_hash(self, name):
+        """Получить хэш пароля пользователя."""
+        user = self.session.query(self.Users).filter_by(login=name).first()
+        return user.password
+
+    def get_pubkey(self, name):
+        """
+        Метод получения публичного ключа пользователя.
+        """
+        user = self.session.query(self.Users).filter_by(login=name).first()
+        return user.pubkey
+
 
 if __name__ == '__main__':
     print('-== Инициализация БД и добавление пользователей ==-')
-    db = ServerStorage('server_base.db3')
-    db.user_login('user1', 'password1', '10.0.0.1', 7777)
-    db.user_login('user2', 'password2', '10.0.0.2', 8888)
-    db.user_login('user6', 'pass', '10.0.0.8', 8080)
+    db = ServerStorage('../server_base.db3')
 
     print('-== Активные пользователи ==-')
     print(db.get_active_users())

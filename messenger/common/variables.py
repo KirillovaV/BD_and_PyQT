@@ -15,7 +15,6 @@ ENCODING = 'utf-8'
 # JIM-протокол
 ACTION = 'action'
 TIME = 'time'
-TYPE = 'type'
 TO = 'to'
 FROM = 'from'
 TEXT = 'message'
@@ -24,6 +23,9 @@ LOGIN = 'user_login'
 RESPONSE = 'response'
 ALERT = 'alert'
 ERROR = 'error'
+DATA = 'bin'
+ACCOUNT_NAME = 'account_name'
+PUBLIC_KEY = 'pubkey'
 
 # Действия (actions)
 PRESENCE = 'presence'
@@ -33,3 +35,25 @@ GET_CONTACTS = 'get_contacts'
 GET_USERS = 'get_users'
 ADD_CONTACT = 'add_contact'
 DEL_CONTACT = 'del_contact'
+PUBLIC_KEY_REQUEST = 'pubkey_need'
+
+# Ответы сервера
+RESPONSE_200 = {
+    RESPONSE: 200,
+    ALERT: None
+}
+
+RESPONSE_202 = {
+    RESPONSE: 202,
+    ALERT: None
+}
+
+RESPONSE_400 = {
+    RESPONSE: 400,
+    ERROR: None
+}
+
+RESPONSE_511 = {
+    RESPONSE: 511,
+    DATA: None
+}
