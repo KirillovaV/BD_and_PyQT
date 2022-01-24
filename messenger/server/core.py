@@ -1,19 +1,19 @@
+import binascii
+import hmac
 import json
+import logging
 import os
 import select
 import sys
 import threading
-import logging
-import hmac
-import binascii
-from time import time
 from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
+from time import time
+
 sys.path.append('../')
 from common.utils import send_message, get_message
 from common.variables import *
 from common.decos import Log
 from common.descriptors import PortDescriptor
-from common.metaclasses import ServerVerifier
 
 server_log = logging.getLogger('server')
 
@@ -21,6 +21,9 @@ server_log = logging.getLogger('server')
 class Server(threading.Thread):
     """
     Основной класс сервера.
+    Принимает содинения, словари - пакеты
+    от клиентов, обрабатывает поступающие сообщения.
+    Работает в качестве отдельного потока.
     """
     listen_port = PortDescriptor()
 
@@ -43,9 +46,7 @@ class Server(threading.Thread):
 
     @Log()
     def init_socket(self):
-        """
-        Инициализация серверного секета
-        """
+        """ Инициализация серверного секета """
         server_log.info('Запуск сервера.')
 
         # Создаём сокет и начинаем прослушивание
@@ -62,7 +63,9 @@ class Server(threading.Thread):
     @Log()
     def run(self):
         """
-        Основной цикл обработки сообщений сервером
+        Основной цикл обработки сообщений сервером.
+        Устанавливает соединение с клиентами,
+        получает сообщения и отправдяет их на дальнейшую обработку.
         """
         self.init_socket()
 
@@ -78,8 +81,6 @@ class Server(threading.Thread):
 
             # Создаём списки клиентов, ожидающих обработки
             read_lst = []
-            write_lst = []
-            err_lst = []
             try:
                 if self.clients:
                     read_lst, self.listen_sockets, self.error_sockets = select.select(
@@ -223,7 +224,8 @@ class Server(threading.Thread):
             server_log.info(f'Клиент {client} отключился от сервера.')
 
         # Если это запрос публичного ключа пользователя
-        elif ACTION in message and message[ACTION] == PUBLIC_KEY_REQUEST and ACCOUNT_NAME in message:
+        elif (ACTION in message and message[ACTION] == PUBLIC_KEY_REQUEST
+              and ACCOUNT_NAME in message):
             response = RESPONSE_511
             response[DATA] = self.db.get_pubkey(message[ACCOUNT_NAME])
             if response[DATA]:

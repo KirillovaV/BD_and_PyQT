@@ -1,22 +1,26 @@
 """
-Клиентская часть:
-параметры командной строки скрипта client.py <addr> [<port>]:
-addr — ip-адрес сервера; port — tcp-порт на сервере, по умолчанию 7777.
+Модуль для запуска клиентской части мессенджера.
+параметры командной строки:
+addr          — ip-адрес сервера;
+port          — tcp-порт на сервере, по умолчанию 7777;
+-n --name     — имя пользователя;
+-p --password — пароль.
 """
 import argparse
 import logging
 import os
 from sys import argv, exit
+
 from Cryptodome.PublicKey import RSA
 from PyQt5.QtWidgets import QApplication
 
-from common.variables import *
-from common.decos import Log
-from common.errors import ServerError
 from client.client_db import ClientStorage
+from client.main_window import ClientMainWindow
 from client.start_dialog import UserNameDialog
 from client.transport import MessengerClient
-from client.main_window import ClientMainWindow
+from common.decos import Log
+from common.errors import ServerError
+from common.variables import *
 
 client_log = logging.getLogger('client')
 
@@ -24,9 +28,9 @@ client_log = logging.getLogger('client')
 @Log()
 def get_client_settings():
     """
-    Получает порт и ip-адрес сервера из аргументов командной строки
-    или назначает по умолчанию
-    :return:
+    Получает параметры клиента из командной сторки
+    или назначает параметры по умолчанию.
+    Возвращает порт и ip-адрес сервера, имя пользователя и пароль
     """
     args = argparse.ArgumentParser()
     args.add_argument('address', default=DEFAULT_IP, nargs='?')
@@ -52,7 +56,7 @@ def get_client_settings():
 @Log()
 def main():
     """
-    Основная функция для запуска клиентской части мессенджера
+    Основная функция для запуска клиентской части мессенджера.
     """
     conn_ip, conn_port, user_name, user_password = get_client_settings()
 

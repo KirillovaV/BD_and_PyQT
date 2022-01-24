@@ -3,21 +3,21 @@ Unit-тесты для модуля utils.py
 """
 
 import json
-import unittest
 import os
 import sys
+import unittest
 from socket import socket, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
+
 sys.path.append(os.path.join(os.getcwd(), '..'))
 from common.variables import *
 from common.utils import get_message, send_message
-from errors import NotDictError
+from common.errors import NotDictError
 
 
 class TestUtils(unittest.TestCase):
     test_message = {
         ACTION: PRESENCE,
         TIME: 1,
-        TYPE: 'status',
         USER: {
             'account_name': 'User',
             'password': ''

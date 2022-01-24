@@ -1,21 +1,21 @@
 """
-Реализовать графический интерфейс для мессенджера, используя библиотеку PyQt.
-Реализовать графический интерфейс администратора сервера:
+Графический интерфейс для серверной части мессенджера.
+Содержит классы для отобрадения следующих окон:
 * отображение списка всех клиентов;
 * отображение статистики клиентов;
-* настройка сервера (подключение к БД, идентификация).
-
-* Регистрация пользователя
-* Удаление пользователя
+* настройка параметров сервера;
+* регистрация пользователя;
+* удаление пользователя.
+Для создания графического интерфейса используется библиотека PyQt.
 """
 import binascii
 import hashlib
-import sys
 import os
-from PyQt5.QtWidgets import QMainWindow, QDialog, QAction, QApplication, qApp
-from PyQt5.QtWidgets import QLabel, QTableView, QPushButton, QLineEdit, QFileDialog, QMessageBox, QComboBox
-from PyQt5.QtGui import QStandardItemModel, QStandardItem
+
 from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QStandardItemModel, QStandardItem
+from PyQt5.QtWidgets import QLabel, QTableView, QPushButton, QLineEdit, QFileDialog, QMessageBox, QComboBox
+from PyQt5.QtWidgets import QMainWindow, QDialog, QAction, qApp
 
 
 class MainWindow(QMainWindow):
@@ -28,15 +28,16 @@ class MainWindow(QMainWindow):
         self.server_thread = server
         self.config = config
 
-        # кнопки
+        # Кнопки панели инструментов.
         self.refresh_button = QAction('Обновить', self)
         self.statistics_button = QAction('Статистика клиентов', self)
         self.config_button = QAction('Настройки сервера', self)
         self.add_user_button = QAction('Добавить пользователя', self)
         self.del_user_button = QAction('Удалить пользователя', self)
 
-        exitAction = QAction('Выход', self)
-        exitAction.triggered.connect(qApp.quit)
+        self.exitAction = QAction('Выход', self)
+        self.exitAction.setShortcut('Ctrl+Q')
+        self.exitAction.triggered.connect(qApp.quit)
 
         # Панель инструментов
         self.toolbar = self.addToolBar('ToolBar')
@@ -47,7 +48,7 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(self.del_user_button)
         self.toolbar.addSeparator()
         self.toolbar.addAction(self.config_button)
-        self.toolbar.addAction(exitAction)
+        self.toolbar.addAction(self.exitAction)
 
         # Параметры окна
         self.setWindowTitle('Server Info')
@@ -64,10 +65,12 @@ class MainWindow(QMainWindow):
 
         self.statusBar()
 
+        # Запуск таймера для обновления таблицы активных клиентов.
         self.timer = QTimer()
         self.timer.timeout.connect(self.create_users_model)
         self.timer.start(1000)
 
+        # Связываем кнопки с обработчиками
         self.refresh_button.triggered.connect(self.create_users_model)
         self.statistics_button.triggered.connect(self.show_statistics)
         self.config_button.triggered.connect(self.server_config)
@@ -78,7 +81,8 @@ class MainWindow(QMainWindow):
 
     def create_users_model(self):
         """
-        Создаёт таблицу активных пользователей для отображения
+        Создаёт таблицу активных пользователей для отображения.
+        Содержит поля: Имя Клиента, IP Адрес, Порт, Время подключения.
         """
         user_list = self.database.get_active_users()
         table = QStandardItemModel()
@@ -103,13 +107,13 @@ class MainWindow(QMainWindow):
         self.clients_table.resizeRowsToContents()
 
     def show_statistics(self):
-        """Создаёт` окно со статистикой клиентов."""
+        """Создаёт окно со статистикой клиентов."""
         global stat_window
         stat_window = StatisticsWindow(self.database)
         stat_window.show()
 
     def server_config(self):
-        """Создаёт` окно с настройками сервера."""
+        """Создаёт окно с настройками сервера."""
         global config_window
         config_window = ConfigWindow(self.config)
 
@@ -120,7 +124,7 @@ class MainWindow(QMainWindow):
         reg_window.show()
 
     def del_user(self):
-        """Метод создающий окно удаления пользователя."""
+        """Создаёт окно удаления пользователя."""
         global rem_window
         rem_window = DelUserDialog(self.database, self.server_thread)
         rem_window.show()
@@ -151,6 +155,11 @@ class StatisticsWindow(QDialog):
         self.create_history_model()
 
     def create_history_model(self):
+        """
+        Создаёт таблицу статистики действий пользователей.
+        Содержит данные о времени последнего входа клиента,
+        количестве отправленных и количестве полученных сообзщений.
+        """
         actions_history = self.database.get_actions_history()
 
         history_list = QStandardItemModel()
@@ -175,9 +184,7 @@ class StatisticsWindow(QDialog):
 
 
 class ConfigWindow(QDialog):
-    """
-    Окно настроек сервера
-    """
+    """ Окно настроек сервера """
     def __init__(self, config):
         super().__init__()
         self.config = config
@@ -407,9 +414,3 @@ class DelUserDialog(QDialog):
             self.server.remove_client(socket)
         self.messages.information(self, 'Успех', 'Пользователь успешно удалён.')
         self.close()
-
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-
-    app.exec_()

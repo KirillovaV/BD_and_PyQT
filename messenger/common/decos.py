@@ -16,7 +16,7 @@ class Log:
     """
     def __init__(self):
         # определяем логгер
-        if argv[0].find('server.py') != -1:
+        if argv[0].find('run_server.py') != -1:
             self.func_logger = logging.getLogger('server')
         else:
             self.func_logger = logging.getLogger('client')

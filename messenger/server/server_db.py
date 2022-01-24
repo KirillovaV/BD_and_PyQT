@@ -1,22 +1,25 @@
 """
-База данных для серверной стороны.
+База данных для серверной части мессенджера.
 На стороне сервера БД содержит следующие таблицы:
 a) вcе клиенты
 b) история клиентов
 c) список активных клиентов
 d) контакты пользователей
 e) история действий пользователей
+Использует SQLite базу данных, реализован с помощью
+SQLAlchemy ORM с использованием декларативного подхода.
 """
 import datetime as dt
 from pprint import pprint
+
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, Text
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
 
 class ServerStorage:
     """
-    Класс-хранилище для серверной базы данных
+    Класс-оболочка для серверной базы данных.
     """
     Base = declarative_base()
 
@@ -89,7 +92,7 @@ class ServerStorage:
 
     class ActionsHistory(Base):
         """
-        Таблица "История действий пользователей
+        Таблица "История действий пользователей"
         """
         __tablename__ = 'actions_history'
 
@@ -117,9 +120,7 @@ class ServerStorage:
         self.session.commit()
 
     def user_login(self, name, ip, port, key):
-        """
-        Вход пользователя в систему
-        """
+        """ Метод-обработчик входа пользователя в систему. """
         now = dt.datetime.now()
         # Ищем пользователя
         result = self.session.query(self.Users).filter_by(login=name)
@@ -145,9 +146,7 @@ class ServerStorage:
         self.session.commit()
 
     def user_logout(self, name):
-        """
-        Выход пользователя из системы
-        """
+        """ Метод-обработчик выхода пользователя из системы. """
         # Находим пользователя
         result = self.session.query(self.Users).filter_by(login=name).first()
         user = self.session.query(self.ActiveUsers).filter_by(user_id=result.user_id)
@@ -157,9 +156,7 @@ class ServerStorage:
         self.session.commit()
 
     def get_active_users(self):
-        """
-        Получить список активных пользователей
-        """
+        """ Получить список активных пользователей. """
         active_users = self.session.query(self.Users.login,
                                           self.ActiveUsers.ip,
                                           self.ActiveUsers.port,
@@ -168,29 +165,23 @@ class ServerStorage:
         return active_users.all()
 
     def get_all_users(self):
-        """
-        Получить список всех пользователей
-        """
+        """ Получить список всех пользователей. """
         users = self.session.query(self.Users.login, self.Users.last_login).all()
         return [user[0] for user in users]
 
-    def get_login_history(self, name=None):
-        """
-        Получить историю входа пользователя
-        По-умолчанию всех пользователей
-        """
+    def get_login_history(self, name):
+        """ Получить историю входа пользователя. """
         history = self.session.query(self.Users.login,
                                      self.History.ip,
                                      self.History.port,
                                      self.History.login_time
                                      ).join(self.Users)
-        if name:
-            history = history.filter(self.Users.login == name)
+        history = history.filter(self.Users.login == name)
         return history.all()
 
     def update_actions_history(self, sender, recipient):
         """
-        Обновляет статистику отправленных/полученных сообщений пользлвателя
+        Обновляет статистику отправленных/полученных сообщений пользлвателя.
         """
         # Находим отправителя и получателя
         sender = self.session.query(self.Users).filter_by(login=sender).first()
@@ -208,9 +199,7 @@ class ServerStorage:
         self.session.commit()
 
     def get_actions_history(self):
-        """
-        Получить статистику пользователя
-        """
+        """ Получить статистику пользователя. """
         query = self.session.query(self.Users.login,
                                    self.Users.last_login,
                                    self.ActionsHistory.sent,
@@ -219,16 +208,15 @@ class ServerStorage:
         return query.all()
 
     def add_contact(self, user, contact):
-        """
-        Добавить контакт
-        """
+        """ Добавить контакт в контакт-лист пользователя. """
         # Находим пользователей
         user = self.session.query(self.Users).filter_by(login=user).first()
         contact = self.session.query(self.Users).filter_by(login=contact).first()
 
         # Проверяем возможность создать контакт
-        if not contact or self.session.query(self.UsersContacts).filter_by(user=user.user_id,
-                                                                           contact=contact.user_id).count():
+        if not contact or self.session.query(
+                self.UsersContacts).filter_by(user=user.user_id,
+                                              contact=contact.user_id).count():
             return
 
         contact_row = self.UsersContacts(user.user_id, contact.user_id)
@@ -236,9 +224,7 @@ class ServerStorage:
         self.session.commit()
 
     def delete_contact(self, user, contact):
-        """
-        Удалить контакт
-        """
+        """ Удалить контакт из списка контактов пользователя. """
         user = self.session.query(self.Users).filter_by(login=user).first()
         contact = self.session.query(self.Users).filter_by(login=contact).first()
 
@@ -251,9 +237,7 @@ class ServerStorage:
         self.session.commit()
 
     def get_user_contacts(self, user):
-        """
-        Влзвращает список контактов указанного пользователя
-        """
+        """ Влзвращает список контактов указанного пользователя. """
         # Ищем пользователя
         user = self.session.query(self.Users).filter_by(login=user).first().user_id
 
@@ -266,18 +250,14 @@ class ServerStorage:
         return contacts
 
     def check_user(self, name):
-        """
-        Проверяет существует ли указанное имя пользователя.
-        """
+        """ Проверяет существует ли указанное имя пользователя. """
         if self.session.query(self.Users).filter_by(login=name).count():
             return True
         else:
             return False
 
     def add_user(self, name, password_hash):
-        """
-        Регистрация в базе нового пользователя.
-        """
+        """ Регистрация в базе нового пользователя. """
         user = self.Users(name, password_hash)
         self.session.add(user)
         self.session.commit()
@@ -286,9 +266,7 @@ class ServerStorage:
         self.session.commit()
 
     def remove_user(self, name):
-        """
-        Метод удаляющий пользователя из базы.
-        """
+        """ Метод удаляющий пользователя из базы. """
         user = self.session.query(self.Users).filter_by(login=name).first()
 
         self.session.query(self.ActiveUsers).filter_by(user_id=user.user_id).delete()
@@ -301,14 +279,12 @@ class ServerStorage:
         self.session.commit()
 
     def get_hash(self, name):
-        """Получить хэш пароля пользователя."""
+        """ Метод получения хэша пароля пользователя. """
         user = self.session.query(self.Users).filter_by(login=name).first()
         return user.password
 
     def get_pubkey(self, name):
-        """
-        Метод получения публичного ключа пользователя.
-        """
+        """ Метод получения публичного ключа пользователя. """
         user = self.session.query(self.Users).filter_by(login=name).first()
         return user.pubkey
 

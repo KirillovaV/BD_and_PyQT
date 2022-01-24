@@ -2,12 +2,14 @@ import binascii
 import hashlib
 import hmac
 import json
+import logging
 import sys
 import threading
-import logging
-from time import time, sleep
 from socket import socket, AF_INET, SOCK_STREAM
+from time import time, sleep
+
 from PyQt5.QtCore import pyqtSignal, QObject
+
 sys.path.append('../')
 from common.utils import send_message, get_message
 from common.variables import *
@@ -20,7 +22,7 @@ sock_lock = threading.Lock()
 
 class MessengerClient(threading.Thread, QObject):
     """
-    Класс-поток для сообщения с сервером
+    Класс-поток для сообщения с сервером.
     """
     new_message = pyqtSignal(dict)
     connection_lost = pyqtSignal()
@@ -54,7 +56,8 @@ class MessengerClient(threading.Thread, QObject):
     def create_connection(self, ip, port):
         """
         Функция пытается установить соединение с сервером
-        из полученных ip-адреса и порта
+        из полученных ip-адреса и порта и отправляет на сервер запрос
+        на авторизацию.
         """
         try:
             self.socket = socket(AF_INET, SOCK_STREAM)
@@ -70,8 +73,8 @@ class MessengerClient(threading.Thread, QObject):
             client_log.info('Запуск процедуры авторизации.')
 
             password_hash = hashlib.pbkdf2_hmac('sha512',
-                                                self.password.encode('utf-8'),
-                                                self.user_name.encode('utf-8'),
+                                                self.password.encode(ENCODING),
+                                                self.user_name.encode(ENCODING),
                                                 10000)
             passwd_hash_string = binascii.hexlify(password_hash)
             pubkey = self.keys.publickey().export_key().decode('ascii')
@@ -88,7 +91,7 @@ class MessengerClient(threading.Thread, QObject):
                             raise ServerError(answer[ERROR])
                         elif answer[RESPONSE] == 511:
                             data = answer[DATA]
-                            digest = hmac.new(passwd_hash_string, data.encode('utf-8'), 'MD5').digest()
+                            digest = hmac.new(passwd_hash_string, data.encode(ENCODING), 'MD5').digest()
                             my_answer = RESPONSE_511
                             my_answer[DATA] = binascii.b2a_base64(digest).decode('ascii')
                             send_message(self.socket, my_answer)
@@ -101,8 +104,8 @@ class MessengerClient(threading.Thread, QObject):
     @Log()
     def create_presence_message(self, pubkey):
         """
-        Функция формирует presence-сообщение для сервера
-        :return: presence-сообщение
+        Функция формирует presence-сообщение для сервера.
+        :param pubkey: публичный ключ пользователя.
         """
         message = {
             ACTION: PRESENCE,
@@ -118,7 +121,7 @@ class MessengerClient(threading.Thread, QObject):
     @Log()
     def get_contact_list(self):
         """
-        Функция отправляет запрос серверу на получение списка контактов пользователя
+        Функция отправляет запрос серверу на получение списка контактов пользователя.
         """
         message = {
             ACTION: GET_CONTACTS,
@@ -139,7 +142,7 @@ class MessengerClient(threading.Thread, QObject):
     @Log()
     def get_user_list(self):
         """
-        Функция отправляет запрос серверу на получение списка известных пользователей
+        Функция отправляет запрос серверу на получение списка известных пользователей.
         """
         client_log.debug(f'Запрос списка известных пользователей от {self.user_name}.')
         message = {
@@ -176,7 +179,7 @@ class MessengerClient(threading.Thread, QObject):
     @Log()
     def add_contact(self, nickname):
         """
-        Функция добавляет контакт в список контактов
+        Функция добавляет контакт в список контактов.
         """
         message = {
             ACTION: ADD_CONTACT,
@@ -193,7 +196,7 @@ class MessengerClient(threading.Thread, QObject):
     @Log()
     def del_contact(self, nickname):
         """
-        Функция удаляет контакт из списка контактов
+        Функция удаляет контакт из списка контактов.
         """
         message = {
             ACTION: DEL_CONTACT,
@@ -210,7 +213,7 @@ class MessengerClient(threading.Thread, QObject):
     @Log()
     def create_user_message(self, recipient, message_text):
         """
-        Функция формирует сообщение пользователя и отправляет его
+        Функция формирует сообщение пользователя и отправляет его.
         """
         message = {
             ACTION: MSG,
@@ -229,7 +232,7 @@ class MessengerClient(threading.Thread, QObject):
     @Log()
     def connection_shutdown(self):
         """
-        Функция закрывает соединение с сервером
+        Функция закрывает соединение с сервером.
         """
         self.running = False
         message = {
@@ -249,9 +252,10 @@ class MessengerClient(threading.Thread, QObject):
     def read_response(self, message):
         """
         Функция принимает сообщение сервера, разбирает его
-        и выводит соответствующий результат
+        и выводит соответствующий результат.
         """
         client_log.debug(f'Разбор ответа сервера: {message}')
+        # Если пришол ответ сервера на запрос:
         if RESPONSE in message:
             if message[RESPONSE] == 200:
                 client_log.info('Получен код подтверждения сервера 200')
@@ -261,6 +265,7 @@ class MessengerClient(threading.Thread, QObject):
             else:
                 client_log.debug(f'Принят неизвестный код подтверждения {message[RESPONSE]}')
 
+        # Если пришло текстовое сообщение от пользователя:
         elif (ACTION in message and message[ACTION] == MSG
                 and TIME in message and FROM in message
                 and TEXT in message
@@ -270,7 +275,7 @@ class MessengerClient(threading.Thread, QObject):
 
     def run(self):
         """
-        Основная функция-процесс для приёмки сообщений
+        Основная функция-процесс для приёмки сообщений.
         """
         client_log.info(f'Запуск процесса для приёмки сообщений.')
         while self.running:

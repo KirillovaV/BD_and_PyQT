@@ -1,9 +1,10 @@
-from PyQt5.QtWidgets import QDialog, QPushButton, QLineEdit, QApplication, QLabel, qApp
+from PyQt5.QtWidgets import QDialog, QPushButton, QLineEdit, QLabel
+from PyQt5.QtWidgets import QApplication, qApp
 
 
 class UserNameDialog(QDialog):
     """
-    Диалоговое окно для выбора пользователя
+    Класс диалогового окна для ввода имени пользователя и пароля
     """
     def __init__(self):
         super().__init__()
@@ -29,7 +30,7 @@ class UserNameDialog(QDialog):
         self.client_pass.move(10, 80)
         self.client_pass.setEchoMode(QLineEdit.Password)
 
-        self.btn_ok = QPushButton('Старт', self)
+        self.btn_ok = QPushButton('ОК', self)
         self.btn_ok.move(30, 110)
         self.btn_ok.clicked.connect(self.click)
 
@@ -40,6 +41,7 @@ class UserNameDialog(QDialog):
         self.show()
 
     def click(self):
+        """Обработчик нажатия кнопки ОК"""
         if self.client_name.text() and self.client_pass.text():
             self.ok_pressed = True
             qApp.exit()

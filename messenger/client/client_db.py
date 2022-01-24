@@ -1,9 +1,11 @@
 """
-База данных для клиентской стороны.
+База данных для клиентской стороны мессенджера.
 БД содержит следующие таблицы:
 a) список всех пользователей;
 b) список контактов;
 c) история сообщений.
+Использует SQLite базу данных, реализован с помощью
+SQLAlchemy ORM с использованием декларативного подхода.
 """
 import os
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, or_
@@ -14,13 +16,13 @@ from datetime import datetime
 
 class ClientStorage:
     """
-    Класс для клиентской базы данных
+    Класс-оболочка для клиентской базы данных.
     """
     Base = declarative_base()
 
     class AllUsers(Base):
         """
-        Список известных пользователей
+        Таблица "Все пользователеи"
         """
         __tablename__ = 'all_users'
 
@@ -32,7 +34,7 @@ class ClientStorage:
 
     class ContactList(Base):
         """
-        Список контактов пользователя
+        Таблица "Список контактов"
         """
         __tablename__ = 'contact_list'
 
@@ -44,7 +46,7 @@ class ClientStorage:
 
     class MessageHistory(Base):
         """
-        История сообщений пользователя
+        Таблица "История сообщений"
         """
         __tablename__ = 'message_history'
 
@@ -77,7 +79,7 @@ class ClientStorage:
 
     def save_message(self, sender, recipient, msg_text):
         """
-        Сохраняет сообщение
+        Функция сохраниения сообщений.
         """
         self.session.add(self.MessageHistory(sender, recipient, msg_text))
         self.session.commit()
@@ -96,7 +98,7 @@ class ClientStorage:
 
     def add_all_users(self, user_list):
         """
-        Добавляет в базу список пользователей, полученный с сервера
+        Добавляет в базу список пользователей, полученный с сервера.
         """
         self.session.query(self.AllUsers).delete()
         for user in user_list:
@@ -106,13 +108,13 @@ class ClientStorage:
 
     def get_users(self):
         """
-        Возвращает список известных пользователей
+        Возвращает список известных пользователей.
         """
         return [user[0] for user in self.session.query(self.AllUsers.user_name).all()]
 
     def check_user(self, user):
         """
-        Проверяющяя наличие пользователя в известных
+        Проверяющяя наличие пользователя в известных.
         """
         if self.session.query(self.AllUsers).filter_by(user_name=user).count():
             return True
@@ -121,7 +123,7 @@ class ClientStorage:
 
     def add_contacts(self, contact_list):
         """
-        Обновляет список контактов
+        Обновляет список контактов.
         """
         self.session.query(self.ContactList).delete()
         for user in contact_list:
