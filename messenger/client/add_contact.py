@@ -8,7 +8,7 @@ client_log = logging.getLogger('client')
 
 class AddContactDialog(QDialog):
     """
-    Диалоговое окно выбора контакта для добавления
+    Диалоговое окно выбора контакта для добавления.
     """
     def __init__(self, connection, database):
         super().__init__()
@@ -46,7 +46,7 @@ class AddContactDialog(QDialog):
 
     def possible_contacts_update(self):
         """
-        Заполнение списка возможных контактов
+        Функция заполнение списка возможных контактов.
         """
         self.selector.clear()
         contacts_list = set(self.database.get_contacts())
@@ -56,7 +56,7 @@ class AddContactDialog(QDialog):
 
     def update_possible_contacts(self):
         """
-        Обновление списка возможных контактов
+        Функция обновление списка возможных контактов.
         """
         try:
             self.connection.get_user_list()

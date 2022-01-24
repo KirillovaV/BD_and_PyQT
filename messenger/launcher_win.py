@@ -1,28 +1,36 @@
 """
-Лаунчер
-Запускает сервер и 3 клиента
+Лаунчер для windows.
+Запускает сервер и 2 клиента.
 """
-
 from subprocess import Popen, CREATE_NEW_CONSOLE
 
 
-# Запускаемые процессы
-processes = []
+def launcher_win():
+    # Список запускаемых процессов
+    processes = []
 
-while True:
-    command = input("Запустить сервер и клиенты (s) / Закрыть все окна и выйти (q) ")
+    while True:
+        command = input('Запустить сервер (s) / '
+                        'Запустить клиенты (c) / '
+                        'Закрыть все окна и выйти (q)\n')
 
-    if command == 'q':
-        for proc in processes:
-            proc.kill()
-        processes.clear()
-        break
+        if command == 'q':
+            for proc in processes:
+                proc.kill()
+            processes.clear()
+            break
 
-    elif command == 's':
-        # Запустить сервер
-        processes.append(Popen('python server.py', creationflags=CREATE_NEW_CONSOLE))
-
-        # Запустить 2 клиента
-        for i in range(2):
-            processes.append(Popen(f'python client.py -n user{i} -p 12345',
+        elif command == 's':
+            # Запустить сервер
+            processes.append(Popen('python run_server.py',
                                    creationflags=CREATE_NEW_CONSOLE))
+
+        elif command == 'c':
+            # Запустить 2 клиента
+            for i in range(2):
+                processes.append(Popen(f'python run_client.py -n user{i} -p 12345',
+                                       creationflags=CREATE_NEW_CONSOLE))
+
+
+if __name__ == "__main__":
+    launcher_win()

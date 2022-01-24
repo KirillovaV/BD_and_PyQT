@@ -1,0 +1,198 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>common package &#8212; Messenger Project 0.0.1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="launcher_win module" href="launcher_win.html" />
+    <link rel="prev" title="client package" href="client.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="common-package">
+<h1>common package<a class="headerlink" href="#common-package" title="Permalink to this headline">¶</a></h1>
+<section id="submodules">
+<h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline">¶</a></h2>
+</section>
+<section id="module-common.decos">
+<span id="common-decos-module"></span><h2>common.decos module<a class="headerlink" href="#module-common.decos" title="Permalink to this headline">¶</a></h2>
+<p>Декораторы</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="common.decos.Log">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">common.decos.</span></span><span class="sig-name descname"><span class="pre">Log</span></span><a class="headerlink" href="#common.decos.Log" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Класс-декоратор для логгирования вызова функций</p>
+</dd></dl>
+
+</section>
+<section id="module-common.descriptors">
+<span id="common-descriptors-module"></span><h2>common.descriptors module<a class="headerlink" href="#module-common.descriptors" title="Permalink to this headline">¶</a></h2>
+<p>Дескриптор для класса серверного сокета.
+Реализует проверку номера порта.
+Это должно быть целое число (&gt;=0). Значение порта по умолчанию равняется 7777.
+Номер порта передается в экземпляр дескриптора при запуске сервера.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="common.descriptors.PortDescriptor">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">common.descriptors.</span></span><span class="sig-name descname"><span class="pre">PortDescriptor</span></span><a class="headerlink" href="#common.descriptors.PortDescriptor" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Класс-дескриптор для проверки номера серверного порта</p>
+</dd></dl>
+
+</section>
+<section id="module-common.errors">
+<span id="common-errors-module"></span><h2>common.errors module<a class="headerlink" href="#module-common.errors" title="Permalink to this headline">¶</a></h2>
+<p>Ошибки, которые могут возникнуть при работе сервера и клиента</p>
+<dl class="py exception">
+<dt class="sig sig-object py" id="common.errors.NotDictError">
+<em class="property"><span class="pre">exception</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">common.errors.</span></span><span class="sig-name descname"><span class="pre">NotDictError</span></span><a class="headerlink" href="#common.errors.NotDictError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
+</dd></dl>
+
+<dl class="py exception">
+<dt class="sig sig-object py" id="common.errors.ServerError">
+<em class="property"><span class="pre">exception</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">common.errors.</span></span><span class="sig-name descname"><span class="pre">ServerError</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">text</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#common.errors.ServerError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Exception</span></code></p>
+</dd></dl>
+
+</section>
+<section id="module-common.utils">
+<span id="common-utils-module"></span><h2>common.utils module<a class="headerlink" href="#module-common.utils" title="Permalink to this headline">¶</a></h2>
+<p>Общие функции клиента и сервера</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="common.utils.get_message">
+<span class="sig-prename descclassname"><span class="pre">common.utils.</span></span><span class="sig-name descname"><span class="pre">get_message</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">socket_obj</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#common.utils.get_message" title="Permalink to this definition">¶</a></dt>
+<dd><p>Функция принимает и декодирует сообщение
+:param socket_obj: объект сокета для обмена сообщениями
+:return: словарь с атрибутами сообщения</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="common.utils.send_message">
+<span class="sig-prename descclassname"><span class="pre">common.utils.</span></span><span class="sig-name descname"><span class="pre">send_message</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">socket_obj</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">message</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#common.utils.send_message" title="Permalink to this definition">¶</a></dt>
+<dd><p>Функция, осуществляющая кодирование и отправку сообщений между
+клиентами
+:param socket_obj: объект сокета для обмена сообщениями
+:param message: словарь с атрибутами сообщения</p>
+</dd></dl>
+
+</section>
+<section id="module-common.variables">
+<span id="common-variables-module"></span><h2>common.variables module<a class="headerlink" href="#module-common.variables" title="Permalink to this headline">¶</a></h2>
+<p>Настройки по умолчанию и описание
+JIM-протокола для передачи сообщений</p>
+</section>
+<section id="module-common">
+<span id="module-contents"></span><h2>Module contents<a class="headerlink" href="#module-common" title="Permalink to this headline">¶</a></h2>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">Messenger Project</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="client.html">client package</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">common package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-common.decos">common.decos module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-common.descriptors">common.descriptors module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-common.errors">common.errors module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-common.utils">common.utils module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-common.variables">common.variables module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-common">Module contents</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="launcher_win.html">launcher_win module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="log.html">log package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="run_client.html">run_client module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="run_server.html">run_server module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="server.html">server package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="unit_tests.html">unit_tests package</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="client.html" title="previous chapter">client package</a></li>
+      <li>Next: <a href="launcher_win.html" title="next chapter">launcher_win module</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2022, Kirillova V.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 4.4.0</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/common.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

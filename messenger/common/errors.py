@@ -1,22 +1,11 @@
 """
-Ошибки
+Ошибки, которые могут возникнуть при работе сервера и клиента
 """
 
 
 class NotDictError(Exception):
     def __str__(self):
         return 'Аргумент функции должен быть словарем'
-
-
-class MissingFieldError(Exception):
-    """
-    Ошибка - отсутствует обязательное поле
-    """
-    def __init__(self, field):
-        self.missing_field = field
-
-    def __str__(self):
-        return f'Отсутствует обязательное поле {self.missing_field}'
 
 
 class ServerError(Exception):

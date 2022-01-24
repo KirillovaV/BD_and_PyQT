@@ -1,19 +1,20 @@
 """
-Серверная часть.
+Модуль для запуска серверной части мессенджера.
 Параметры командной строки:
--p <port> — TCP-порт для работы (по умолчанию использует 7777);
--a <addr> — IP-адрес для прослушивания (по умолчанию слушает все доступные адреса).
+<port> — TCP-порт для работы (по умолчанию использует 7777);
+<addr> — IP-адрес для прослушивания (по умолчанию слушает все доступные адреса).
 """
 import argparse
-import os
 import configparser
 import logging
+import os
 from sys import argv
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication
 
-from common.variables import *
 from common.decos import Log
+from common.variables import *
 from server.core import Server
 from server.server_db import ServerStorage
 from server.server_gui import MainWindow
@@ -24,8 +25,8 @@ server_log = logging.getLogger('server')
 @Log()
 def get_server_settings(default_port, default_address):
     """
-    Получает IP-адрес для прослушивания и порт для работы из командной строки
-    :return: IP-адрес и порт для работы сервера
+    Получает IP-адрес для прослушивания и порт для работы из командной строки.
+    :return: IP-адрес, порт.
     """
     server_log.info(f'Получение IP-адреса и порта для работы.')
     args = argparse.ArgumentParser()
@@ -42,7 +43,12 @@ def get_server_settings(default_port, default_address):
 
 @Log()
 def config_load():
-    """Парсер конфигурационного ini файла."""
+    """
+    Парсер конфигурационного ini файла.
+    Ищет файл конфигерации сервера и считывает из него параметры запуска,
+    либо задаёт парамерты по умолчанию.
+    :return: config - параметры конфигурации
+    """
     config = configparser.ConfigParser()
     dir_path = os.path.dirname(os.path.realpath(__file__))
     config.read(f"{dir_path}/{'server.ini'}")
@@ -59,24 +65,30 @@ def config_load():
 
 
 def main():
+    """Основная функция для запуска сервера."""
+    # Загрузка параметров сервера.
     config = config_load()
     addr, port = get_server_settings(config['SETTINGS']['Default_port'],
                                      config['SETTINGS']['Listen_Address'])
 
+    # Инициализация базы данных.
     server_db = ServerStorage(os.path.join(
         config['SETTINGS']['Database_path'],
         config['SETTINGS']['Database_file'])
     )
 
+    # Создание и запуск сервера.
     server = Server(addr, port, server_db)
     server.daemon = True
     server.start()
 
+    # Запуск графического интерфейса сервера.
     server_app = QApplication(argv)
     server_app.setAttribute(Qt.AA_DisableWindowContextHelpButton)
     main_window = MainWindow(server_db, server, config)
-
     server_app.exec_()
+
+    # Завершение работы сервера.
     server.running = False
 
 
